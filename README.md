@@ -53,10 +53,12 @@ Upstream code lives in sibling forks; this repo holds only our layer:
 - No distributed/NCCL, flash-attn, CK paths.
 - r1 one-shot only; stock kernel stays default; user power-cycles on wedge.
 
-## 8-CPU question
+## 8-core CPU unlock
 
-No 8-CPU patch exists anywhere in the tree. The BC-250 APU exposes 12
-x86 threads (`/proc/cpuinfo`, 6C/12T Zen); the kernel config allows up to
-256. The "40CU / 8CPU" phrasing was a misunderstanding: what we changed
-is 40-CU GPU unlock (`bc250_cc_write_mode=3`, simd_count=80). No CPU
-topology change was made or is needed.
+Real and separate from the GPU work: SMU mask `0x0115A870`
+(`0x77` stock, `0xFF` unlocked) via `GabriWar/bc250-core-cu-unlock`
+(`bc250-8core-unlock.sh`), warm reboot to enumerate, ACPI update for
+CPUs 12-15. Our board mask already reads UNLOCKED, enumeration pending.
+Details + telemetry patch copy in `bc250-linux` (`docs/8CORE-UNLOCK.md`,
+`kernel-patches/0005`). Full doc:
+https://elektricm.github.io/amd-bc250-docs/system/8core-unlock/
