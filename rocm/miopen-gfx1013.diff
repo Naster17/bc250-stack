@@ -1,0 +1,77 @@
+diff --git a/projects/miopen/src/solver/conv/conv_hip_dir2D11x11.cpp b/projects/miopen/src/solver/conv/conv_hip_dir2D11x11.cpp
+index df91f2b3..cb00cd0f 100644
+--- a/projects/miopen/src/solver/conv/conv_hip_dir2D11x11.cpp
++++ b/projects/miopen/src/solver/conv/conv_hip_dir2D11x11.cpp
+@@ -28,7 +28,7 @@ bool ConvHipDirectFwd11x11::IsApplicable(const ExecutionContext& ctx,
+     const auto& name = ctx.GetStream().GetDeviceName();
+     // gfx8 is intentionally excluded: it is end-of-life and not supported for new HIP solvers.
+     if(!(StartsWith(name, "gfx90") || StartsWith(name, "gfx94") || StartsWith(name, "gfx95") ||
+-         StartsWith(name, "gfx103") || StartsWith(name, "gfx110") || StartsWith(name, "gfx115") ||
++         (StartsWith(name, "gfx103") || (name == "gfx1013")) || StartsWith(name, "gfx110") || StartsWith(name, "gfx115") ||
+          StartsWith(name, "gfx120")))
+         return false;
+     if(!problem.Is2d())
+diff --git a/projects/miopen/src/solver/conv/conv_hip_dir2D_bwdWrW_53.cpp b/projects/miopen/src/solver/conv/conv_hip_dir2D_bwdWrW_53.cpp
+index 096d5802..108d8694 100644
+--- a/projects/miopen/src/solver/conv/conv_hip_dir2D_bwdWrW_53.cpp
++++ b/projects/miopen/src/solver/conv/conv_hip_dir2D_bwdWrW_53.cpp
+@@ -45,7 +45,7 @@ bool ConvHipBwdWrW53::IsApplicable(const ExecutionContext& ctx,
+     if(env::disabled(MIOPEN_DEBUG_CONV_DIRECT_HIP_WRW53))
+         return false;
+     const std::string name = ctx.GetStream().GetDeviceName();
+-    if(!(StartsWith(name, "gfx8") || StartsWith(name, "gfx90") || StartsWith(name, "gfx103")))
++    if(!(StartsWith(name, "gfx8") || StartsWith(name, "gfx90") || (StartsWith(name, "gfx103") || (name == "gfx1013"))))
+         return false;
+     if(!ctx.use_hip_kernels)
+         return false;
+diff --git a/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp b/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
+index 8d1bc034..78d8def7 100644
+--- a/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
++++ b/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
+@@ -21,7 +21,7 @@ bool ConvHipDirectFwd::IsApplicable(const ExecutionContext& ctx,
+     if(env::disabled(MIOPEN_DEBUG_CONV_DIRECT_HIP_FWD))
+         return false;
+     const std::string name = ctx.GetStream().GetDeviceName();
+-    if(!(StartsWith(name, "gfx8") || StartsWith(name, "gfx90") || StartsWith(name, "gfx103")))
++    if(!(StartsWith(name, "gfx8") || StartsWith(name, "gfx90") || (StartsWith(name, "gfx103") || (name == "gfx1013"))))
+         return false;
+     if(!ctx.use_hip_kernels)
+         return false;
+diff --git a/projects/miopen/src/solver/conv/conv_winoRxS.cpp b/projects/miopen/src/solver/conv/conv_winoRxS.cpp
+index 8b51f425..dcd3a1cc 100644
+--- a/projects/miopen/src/solver/conv/conv_winoRxS.cpp
++++ b/projects/miopen/src/solver/conv/conv_winoRxS.cpp
+@@ -699,7 +699,7 @@ static bool IsApplicableBase(const ExecutionContext& ctx, const ProblemDescripti
+     if(problem.IsFp16() &&
+        !(name == "gfx906" || name == "gfx908" || name == "gfx90a" || name == "gfx942" ||
+          StartsWith(name, "gfx95") || name == "gfx1011" || name == "gfx1012" ||
+-         StartsWith(name, "gfx103") || StartsWith(name, "gfx11") || StartsWith(name, "gfx120")))
++         (StartsWith(name, "gfx103") || (name == "gfx1013")) || StartsWith(name, "gfx11") || StartsWith(name, "gfx120")))
+         return false;
+ 
+     if(name == "gfx90a" && problem.IsGfx90aFp16altRequired())
+diff --git a/projects/miopen/src/solver/conv_winoRxS_fused.cpp b/projects/miopen/src/solver/conv_winoRxS_fused.cpp
+index eb879a17..08016212 100644
+--- a/projects/miopen/src/solver/conv_winoRxS_fused.cpp
++++ b/projects/miopen/src/solver/conv_winoRxS_fused.cpp
+@@ -161,7 +161,7 @@ bool ConvBinWinogradRxSf2x3g1Fused::IsApplicable(const FusionContext& context,
+     if(conv_problem.IsFp16() &&
+        !(StartsWith(name, "gfx906") || StartsWith(name, "gfx908") || StartsWith(name, "gfx90a") ||
+          StartsWith(name, "gfx942") || StartsWith(name, "gfx1011") || StartsWith(name, "gfx1012") ||
+-         StartsWith(name, "gfx103") || StartsWith(name, "gfx11") || StartsWith(name, "gfx120")))
++         (StartsWith(name, "gfx103") || (name == "gfx1013")) || StartsWith(name, "gfx11") || StartsWith(name, "gfx120")))
+         return false;
+ 
+     // clang-format off
+diff --git a/projects/miopen/src/target_properties.cpp b/projects/miopen/src/target_properties.cpp
+index 7dc265be..413a183d 100644
+--- a/projects/miopen/src/target_properties.cpp
++++ b/projects/miopen/src/target_properties.cpp
+@@ -51,6 +51,7 @@ static std::string GetDeviceNameFromMap(const std::string& in)
+         {"Vega10", "gfx900"},
+         {"gfx901", "gfx900"},
+         {"10.3.0 Sienna_Cichlid 18", "gfx1030"},
++        {"gfx1013", "gfx1013"}, // BC-250: keep native name
+     };
+ 
+     const auto& dev_str = env::value(MIOPEN_DEBUG_ENFORCE_DEVICE);

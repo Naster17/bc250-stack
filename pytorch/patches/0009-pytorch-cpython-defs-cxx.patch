@@ -1,0 +1,46 @@
+diff --git a/torch/CMakeLists.txt b/torch/CMakeLists.txt
+--- a/torch/CMakeLists.txt
++++ b/torch/CMakeLists.txt
+@@ -164,6 +164,13 @@
+       )
+     if(NOT WIN32)
+       list(APPEND TORCH_PYTHON_LINK_LIBRARIES ${ROCM_ROCTX_LIB})
++      if(ROCM_ROCTX_LIB)
++        get_filename_component(_roctx_libdir "${ROCM_ROCTX_LIB}" DIRECTORY)
++        get_filename_component(_roctx_prefix "${_roctx_libdir}" DIRECTORY)
++        if(EXISTS "${_roctx_prefix}/include/roctracer/roctx.h")
++          list(APPEND TORCH_PYTHON_INCLUDE_DIRECTORIES "${_roctx_prefix}/include")
++        endif()
++      endif()
+     endif()
+ endif()
+ 
+@@ -320,6 +327,12 @@
+ 
+ add_library(torch_python SHARED ${TORCH_PYTHON_SRCS})
+ torch_compile_options(torch_python)  # see cmake/public/utils.cmake
++if(USE_ROCM)
++  set_source_files_properties(
++    ${TORCH_SRC_DIR}/csrc/dynamo/cpython_defs.c
++    ${TORCH_SRC_DIR}/csrc/dynamo/eval_frame.c
++    PROPERTIES LANGUAGE C COMPILE_FLAGS "-std=gnu11 -fno-strict-aliasing -Wno-strict-aliasing")
++endif()
+ if(APPLE)
+   target_compile_options(torch_python PRIVATE
+       $<$<COMPILE_LANGUAGE:CXX>: -fvisibility=default>)
+diff --git a/torch/csrc/dynamo/cpython_includes.h b/torch/csrc/dynamo/cpython_includes.h
+--- a/torch/csrc/dynamo/cpython_includes.h
++++ b/torch/csrc/dynamo/cpython_includes.h
+@@ -13,11 +13,9 @@
+ #if PY_VERSION_HEX >= 0x03080000
+ #define Py_BUILD_CORE
+ 
+-#ifndef __cplusplus
+-// C-only headers
++// C-only headers (C++ callers: cpython_defs is compiled LANGUAGE C; see torch/CMakeLists.txt)
+ #include <internal/pycore_pystate.h>
+ 
+-#endif // __cplusplus
+ 
+ #if IS_PYTHON_3_11_PLUS
+ #include <internal/pycore_frame.h>

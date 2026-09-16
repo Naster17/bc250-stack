@@ -1,0 +1,35 @@
+From 5d95985f2b669578a4749431c8bdf442497ae84b Mon Sep 17 00:00:00 2001
+From: nik <nik@bc500.my.domain>
+Date: Sun, 13 Sep 2026 12:58:58 +0000
+Subject: [PATCH] ggml : classify gfx1013 as RDNA1 in the HIP vendor header
+
+The runtime cc 0x1013 was already treated as RDNA1, but device-side
+__gfx1013__ did not define RDNA1, so Flash Attention tile dispatch
+used mismatched host and device geometry and produced NaN/inf results
+on BC-250. With this fix the full GGML HIP CPU-comparison suite passes
+(15988/15988 supported cases) on gfx1013:xnack-.
+
+Assisted-by: opencode (GLM)
+---
+ ggml/src/ggml-cuda/vendors/hip.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ggml/src/ggml-cuda/vendors/hip.h b/ggml/src/ggml-cuda/vendors/hip.h
+index 2fc0fe9fd..92a185b7a 100644
+--- a/ggml/src/ggml-cuda/vendors/hip.h
++++ b/ggml/src/ggml-cuda/vendors/hip.h
+@@ -229,9 +229,9 @@
+ #define RDNA2
+ #endif
+ 
+-#if defined(__gfx1010__) || defined(__gfx1012__)
++#if defined(__gfx1010__) || defined(__gfx1012__) || defined(__gfx1013__)
+ #define RDNA1
+-#endif // defined(__gfx1010__) || defined(__gfx1012__)
++#endif // defined(__gfx1010__) || defined(__gfx1012__) || defined(__gfx1013__)
+ 
+ #if defined(RDNA4) || defined(RDNA3) || defined(RDNA2) || defined(RDNA1)
+ #define RDNA // For the entire family
+-- 
+2.54.0
+

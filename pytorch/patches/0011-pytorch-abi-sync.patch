@@ -1,0 +1,12 @@
+diff --git a/cmake/Dependencies.cmake b/cmake/Dependencies.cmake
+--- a/cmake/Dependencies.cmake
++++ b/cmake/Dependencies.cmake
+@@ -1031,6 +1031,8 @@
+ 
+     # needed for compat with newer versions of hip-clang that introduced C++20 mangling rules
+     list(APPEND HIP_HIPCC_FLAGS -fclang-abi-compat=17)
++    # host CXX here is also amdclang++, keep its mangling in sync with HIP host code
++    string(APPEND CMAKE_CXX_FLAGS " -fclang-abi-compat=17")
+ 
+     set(HIP_CLANG_FLAGS ${HIP_CXX_FLAGS})
+     # Ask hcc to generate device code during compilation so we can use

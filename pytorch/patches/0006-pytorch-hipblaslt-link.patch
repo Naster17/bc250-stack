@@ -1,0 +1,13 @@
+diff --git a/cmake/Dependencies.cmake b/cmake/Dependencies.cmake
+--- a/cmake/Dependencies.cmake
++++ b/cmake/Dependencies.cmake
+@@ -1051,6 +1051,9 @@
+     # Math libraries
+     list(APPEND Caffe2_PUBLIC_HIP_DEPENDENCY_LIBS
+       roc::hipblas roc::rocblas hip::hipfft hip::hiprand roc::hipsparse roc::hipsolver roc::rocsolver)
++    if(hipblaslt_FOUND)
++      list(APPEND Caffe2_PUBLIC_HIP_DEPENDENCY_LIBS roc::hipblaslt)
++    endif()
+     # hipsparselt is an optional component that will eventually be enabled by default.
+     if(hipsparselt_FOUND)
+       list(APPEND Caffe2_PUBLIC_HIP_DEPENDENCY_LIBS

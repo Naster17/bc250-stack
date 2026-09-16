@@ -1,0 +1,37 @@
+diff --git a/drivers/gpu/drm/amd/amdgpu/gmc_v10_0.c b/drivers/gpu/drm/amd/amdgpu/gmc_v10_0.c
+--- a/drivers/gpu/drm/amd/amdgpu/gmc_v10_0.c
++++ b/drivers/gpu/drm/amd/amdgpu/gmc_v10_0.c
+@@ -21,6 +21,7 @@
+  *
+  */
+ #include <linux/firmware.h>
+ #include <linux/pci.h>
++#include <linux/module.h>
+ 
+ #include <drm/drm_cache.h>
+@@ -51,6 +52,13 @@
+ #include "athub_v2_0.h"
+ #include "athub_v2_1.h"
+ 
++static int bc250_flush_pasid_kiq = 1;
++module_param(bc250_flush_pasid_kiq, int, 0444);
++MODULE_PARM_DESC(bc250_flush_pasid_kiq,
++	"BC-250: 0=flush PASID TLB without KIQ (default 1)");
++
++#define BC250_PCI_DEVICE_ID 0x13FE
++
+ static int gmc_v10_0_ecc_interrupt_state(struct amdgpu_device *adev,
+ 					 struct amdgpu_irq_src *src,
+ 					 unsigned int type,
+@@ -984,7 +992,10 @@ static int gmc_v10_0_hw_init(struct amdgpu_ip_block *ip_block)
+ 	struct amdgpu_device *adev = ip_block->adev;
+ 	int r;
+ 
+-	adev->gmc.flush_pasid_uses_kiq = !amdgpu_emu_mode;
++	adev->gmc.flush_pasid_uses_kiq =
++		adev->pdev->device == BC250_PCI_DEVICE_ID && !bc250_flush_pasid_kiq
++			? false
++			: !amdgpu_emu_mode;
+ 
+ 	/* The sequence of these two function calls matters.*/
+ 	gmc_v10_0_init_golden_registers(adev);
