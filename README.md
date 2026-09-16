@@ -7,7 +7,7 @@ official support.
 
 Upstream code lives in sibling forks; this repo holds only our layer:
 
-- `Naster17/bc250-linux` (fork of `torvalds/linux`) - branch `bc250-r1`
+- `Naster17/bc250-linux` (fork of `torvalds/linux`) - branch `bc250-r2` (7.1.5, default; `bc250-r1` = 6.18.50 legacy)
 - `Naster17/bc250-rocm` (fork of `boondocklabs/rocm-libraries`) - branch `bc250-gfx1013`
 - `Naster17/bc250-torch` (fork of `pytorch/pytorch` at `v2.9.1`) - branch `bc250-gfx1013`
 - `Naster17/llama.cpp` - branch `gfx1013-rdna1`
