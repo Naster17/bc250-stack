@@ -34,7 +34,7 @@ exec podman run --rm --name bc250-torch-dist --network none \
     -v /home/nik/bc250work/miopen-build-gfx1013/miopen-prefix:/miopen:ro \
     -v /home/nik/bc250work/python-dev/overlay/usr:/opt/pydev:ro \
     -v /home/nik/bc250work/third-party/eigen-3.4.0:/eigen:ro \
-    -v /usr/local/include/rocm_smi:/rocm-smi:ro \
+    -v /usr/local/include:/rocm-smi-inc:ro \
     "$img" /bin/sh -c '
         set -eu
         export VIRTUAL_ENV=/venv
@@ -57,7 +57,7 @@ exec podman run --rm --name bc250-torch-dist --network none \
         export MAX_JOBS=16 CMAKE_BUILD_PARALLEL_LEVEL=16
         export CMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ CMAKE_C_COMPILER=/opt/rocm/bin/amdclang
         export HIPCXX=/opt/rocm/bin/hipcc HIPCC=/opt/rocm/bin/hipcc
-        export CXXFLAGS="-I/rocm-smi"
+        export CXXFLAGS="-I/rocm-smi-inc"
         export Python_EXECUTABLE=/venv/bin/python
         export Python_INCLUDE_DIR=/opt/pydev/include/python3.12
         export Python_LIBRARY=/opt/pydev/lib/x86_64-linux-gnu/libpython3.12.a
