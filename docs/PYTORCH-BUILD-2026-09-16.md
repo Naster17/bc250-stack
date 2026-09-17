@@ -61,3 +61,15 @@
   `874e24cdfe2c07b8d9bde7f2723983b7d0123917f10697204d6f77d4ba9e1055`),
   `LD_LIBRARY_PATH` with syslibs (openblas/gfortran) + all native prefixes,
   `HSA_ENABLE_SDMA=1`, `OMP_NUM_THREADS=4`.
+
+## Addendum 2026-09-17: distributed wheel + r1.4 + peer validation
+
+- Dist wheel (Gloo): same name, 136,712,418 bytes, sha256
+  2d1af013d1896966c5d09557f3b56592df2e920b5c103098354a8d1aa14ddc5b.
+  dist-avail True, gloo True, nccl False; single-proc gloo allreduce OK.
+- r1.4 image: r1.3 + glibc rocm-smi lib prefix + /opt/torch-venv-dist.
+  Base + dist venvs gated OK on r2 (R14_GATES_OK).
+- Peer board .104 (system bc250 rocm image): r1.4 transferred OCI
+  (sha256-verified board-to-board), torch cuda True 1x gfx1013.
+EOF
+sha256sum ~/bc250work/bc250-rocm-lab/PYTORCH-BUILD-2026-09-16.md
