@@ -60,7 +60,26 @@ int main() {
         std::printf("TUNE fwd n=%d c=%d hw=%d k=%d r=%d -> %s algo=%d\n", c.n, c.c, c.h, c.k,
                     c.r, st == miopenStatusSuccess ? "OK" : "FAIL",
                     st == miopenStatusSuccess ? static_cast<int>(perf.fwd_algo) : -1);
-        if (st == miopenStatusSuccess) {
+        bool ok_cfg = (st == miopenStatusSuccess);
+        miopenConvAlgoPerf_t bperf;
+        int bret = 0;
+        miopenStatus_t bst = miopenFindConvolutionBackwardDataAlgorithm(
+            handle, y_desc, d_y, w_desc, d_w, conv, x_desc, d_x, 1, &bret, &bperf, d_ws, ws,
+            false);
+        std::printf("TUNE bwd-data n=%d c=%d hw=%d k=%d r=%d -> %s algo=%d\n", c.n, c.c, c.h,
+                    c.k, c.r, bst == miopenStatusSuccess ? "OK" : "FAIL",
+                    bst == miopenStatusSuccess ? static_cast<int>(bperf.bwd_data_algo) : -1);
+        ok_cfg = ok_cfg && (bst == miopenStatusSuccess);
+        miopenConvAlgoPerf_t wperf;
+        int wret = 0;
+        miopenStatus_t wst = miopenFindConvolutionBackwardWeightsAlgorithm(
+            handle, y_desc, d_y, x_desc, d_x, conv, w_desc, d_w, 1, &wret, &wperf, d_ws, ws,
+            false);
+        std::printf("TUNE bwd-w n=%d c=%d hw=%d k=%d r=%d -> %s algo=%d\n", c.n, c.c, c.h, c.k,
+                    c.r, wst == miopenStatusSuccess ? "OK" : "FAIL",
+                    wst == miopenStatusSuccess ? static_cast<int>(wperf.bwd_weights_algo) : -1);
+        ok_cfg = ok_cfg && (wst == miopenStatusSuccess);
+        if (ok_cfg) {
             ++done;
         }
         miopenDestroyConvolutionDescriptor(conv);
