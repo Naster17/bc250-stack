@@ -1,0 +1,8 @@
+soak 0: loss=1.047640 t=0.0min
+soak 100: loss=0.623298 t=0.0min
+soak 200: loss=0.314486 t=0.0min
+soak 300: loss=0.117631 t=0.0min
+soak 400: loss=0.032666 t=0.0min
+soak 500: loss=0.007300 t=0.0min
+SOAK_LOSSES [1.04764, 0.623298, 0.314486, 0.117631, 0.032666, 0.0073]
+SOAK_OK
