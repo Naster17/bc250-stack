@@ -6,7 +6,8 @@ ref, conv2d fwd+bwd (tuned DB), FFT roundtrip vs CPU, RNG stats, sparse
 CSRmv vs dense, `linalg.solve` + `lu_factor`, Adam train with clip,
 fp16 autocast. Exit nonzero on any FAIL.
 
-## .105 (r2 + r1.4, full timings) — MATRIX_PASS
+## .105 (r2 + r1.4, full timings) — MATRIX_PASS (re-verified 2026-09-18
+against the review-fix commits: identical errors and timings)
 
 ```text
 torch 2.9.1a0 cuda=True ndev=1 arch=['gfx1013']
