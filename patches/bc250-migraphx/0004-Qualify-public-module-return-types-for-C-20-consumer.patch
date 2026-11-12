@@ -1,0 +1,105 @@
+From 144f6db5caf5590e41233bb1a94f152659d02f4a Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Wed, 28 Oct 2026 18:27:41 +0100
+Subject: [PATCH 4/5] Qualify public module return types for C++20 consumers
+
+---
+ src/api/include/migraphx/migraphx.hpp |  4 +--
+ test/api/CMakeLists.txt               | 10 +++++++
+ test/api/test_cpp20_header.cpp        | 41 +++++++++++++++++++++++++++
+ 3 files changed, 53 insertions(+), 2 deletions(-)
+ create mode 100644 test/api/test_cpp20_header.cpp
+
+diff --git a/src/api/include/migraphx/migraphx.hpp b/src/api/include/migraphx/migraphx.hpp
+index c25af9b79..a1a48d730 100644
+--- a/src/api/include/migraphx/migraphx.hpp
++++ b/src/api/include/migraphx/migraphx.hpp
+@@ -1403,7 +1403,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
+         return pout;
+     }
+ 
+-    module get_main_module()
++    migraphx::module get_main_module()
+     {
+         migraphx_module_t p_modu;
+         call(&migraphx_program_get_main_module, &p_modu, this->get_handle_ptr());
+@@ -1417,7 +1417,7 @@ struct program : MIGRAPHX_HANDLE_BASE(program)
+         return context{ctx, this->share_handle()};
+     }
+ 
+-    module create_module(const std::string& name)
++    migraphx::module create_module(const std::string& name)
+     {
+         migraphx_module_t p_modu;
+         call(&migraphx_program_create_module, &p_modu, this->get_handle_ptr(), name.data());
+diff --git a/test/api/CMakeLists.txt b/test/api/CMakeLists.txt
+index e3da265d1..85f4ff80d 100644
+--- a/test/api/CMakeLists.txt
++++ b/test/api/CMakeLists.txt
+@@ -59,6 +59,16 @@ function(add_c_api_test TEST_NAME TEST_SRC TEST_DIR)
+     endif()
+ endfunction()
+ 
++# Compile the public wrapper as a C++20 consumer: an unqualified module return
++# type at the start of a line is parsed as a module directive by Clang.
++add_executable(test_api_cpp20_header EXCLUDE_FROM_ALL test_cpp20_header.cpp)
++target_link_libraries(test_api_cpp20_header PRIVATE migraphx_c)
++set_target_properties(test_api_cpp20_header PROPERTIES
++    CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_SCAN_FOR_MODULES OFF)
++add_test(NAME test_api_cpp20_header COMMAND $<TARGET_FILE:test_api_cpp20_header>)
++add_dependencies(tests test_api_cpp20_header)
++add_dependencies(check test_api_cpp20_header)
++
+ if(MIGRAPHX_ENABLE_ONNX)
+ add_api_test(array_base test_array_base.cpp ${TEST_ONNX_DIR})
+ add_api_test(assign test_assign.cpp ${TEST_ONNX_DIR})
+diff --git a/test/api/test_cpp20_header.cpp b/test/api/test_cpp20_header.cpp
+new file mode 100644
+index 000000000..e7336fa01
+--- /dev/null
++++ b/test/api/test_cpp20_header.cpp
+@@ -0,0 +1,41 @@
++/*
++ * The MIT License (MIT)
++ *
++ * Copyright (c) 2015-2026 Advanced Micro Devices, Inc. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++ * THE SOFTWARE.
++ */
++#include <migraphx/migraphx.hpp>
++#include <type_traits>
++#include <utility>
++
++static_assert(std::is_same<decltype(std::declval<migraphx::program&>().get_main_module()),
++                           migraphx::module>::value,
++              "main module return type changed");
++static_assert(std::is_same<decltype(std::declval<migraphx::program&>().create_module("sub")),
++                           migraphx::module>::value,
++              "created module return type changed");
++
++int main()
++{
++    migraphx::program program;
++    auto main_module = program.get_main_module();
++    auto sub_module  = program.create_module("sub");
++    return main_module.get_handle_ptr() == nullptr or sub_module.get_handle_ptr() == nullptr;
++}
+-- 
+2.56.0
+

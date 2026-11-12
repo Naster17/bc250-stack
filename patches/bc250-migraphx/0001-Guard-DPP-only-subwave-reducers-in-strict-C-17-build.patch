@@ -1,0 +1,77 @@
+From 35b40656df72d075a69b155273cf0cc121009683 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Sat, 24 Oct 2026 21:13:12 +0200
+Subject: [PATCH 1/5] Guard DPP-only subwave reducers in strict C++17 builds
+
+---
+ .../include/migraphx/kernels/reduce.hpp       |  3 ++
+ test/gpu/kernels/reduce_no_dpp.cpp            | 36 +++++++++++++++++++
+ 2 files changed, 39 insertions(+)
+ create mode 100644 test/gpu/kernels/reduce_no_dpp.cpp
+
+diff --git a/src/targets/gpu/kernels/include/migraphx/kernels/reduce.hpp b/src/targets/gpu/kernels/include/migraphx/kernels/reduce.hpp
+index 3b3aec4a7..8a88fa3c8 100644
+--- a/src/targets/gpu/kernels/include/migraphx/kernels/reduce.hpp
++++ b/src/targets/gpu/kernels/include/migraphx/kernels/reduce.hpp
+@@ -996,6 +996,8 @@ struct block_strided
+     }
+ };
+ 
++// Subwave reducers require the DPP implementation declared above.
++#if MIGRAPHX_HAS_DPP
+ template <unsigned int SubWaveSize>
+ struct subwave
+ {
+@@ -1075,6 +1077,7 @@ struct subwave
+ };
+ 
+ using wave = subwave<MIGRAPHX_WAVEFRONTSIZE>;
++#endif
+ 
+ struct lane
+ {
+diff --git a/test/gpu/kernels/reduce_no_dpp.cpp b/test/gpu/kernels/reduce_no_dpp.cpp
+new file mode 100644
+index 000000000..58953768a
+--- /dev/null
++++ b/test/gpu/kernels/reduce_no_dpp.cpp
+@@ -0,0 +1,36 @@
++/*
++ * The MIT License (MIT)
++ *
++ * Copyright (c) 2025-2026 Advanced Micro Devices, Inc. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to deal
++ * in the Software without restriction, including without limitation the rights
++ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++ * copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
++ * THE SOFTWARE.
++ *
++ */
++// Including reduce.hpp with DPP disabled must also compile in strict C++17.
++#define MIGRAPHX_HAS_DPP 0
++#include <migraphx/kernels/reduce.hpp>
++#include <migraphx/kernels/test.hpp>
++
++TEST_CASE(reduce_no_dpp_block)
++{
++    auto idx = migraphx::make_index();
++    auto sum =
++        migraphx::block_reduce(idx, migraphx::op::sum{}, 0, 17, [](auto i) { return int(i); });
++    EXPECT(sum == 136);
++}
+-- 
+2.56.0
+

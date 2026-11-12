@@ -1,0 +1,242 @@
+From 67d0f189570c831efa17b524c080de07bbec485a Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 15 Oct 2026 11:02:41 +0200
+Subject: [PATCH] drm/amdkfd: retain BC-250 queue eviction on SVM CPU-unmap
+ failure
+
+Quiesce the single-device BC-250 CPU-unmap path before page-table invalidation. Balance the eviction only after successful invalidation; retain it on returned errors. Commit mapped_to_gpu=false only after all invalidations succeed. Add root-only, host-TGID-targeted one-shot injection gated by a successful queue stop.
+
+This contains returned CPU-unmap invalidation errors after confirmed quiescence. Scheduler-stop failures, retry-fault migration, multi-GPU SVM and map-side reservation ordering remain unqualified.
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h     |  8 ++
+ .../drm/amd/amdkfd/kfd_device_queue_manager.c |  6 ++
+ drivers/gpu/drm/amd/amdkfd/kfd_svm.c          | 82 ++++++++++++++++---
+ 3 files changed, 83 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
+index 14ab20772..e01302fbf 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
+@@ -3,16 +3,24 @@
+ #define AMDGPU_BC250_H
+ 
+ #include <linux/kconfig.h>
++#include <linux/types.h>
+ 
+ struct amdgpu_device;
+ struct amdgpu_vm;
+ struct dma_fence;
+ 
+ #if IS_ENABLED(CONFIG_HSA_AMD)
++bool amdgpu_amdkfd_bc250_flush_enabled(struct amdgpu_device *adev, int site);
+ int amdgpu_amdkfd_bc250_flush_gem_va(struct amdgpu_device *adev,
+ 				   struct amdgpu_vm *vm,
+ 				   struct dma_fence *fence, int site);
+ #else
++static inline bool
++amdgpu_amdkfd_bc250_flush_enabled(struct amdgpu_device *adev, int site)
++{
++	return false;
++}
++
+ static inline int
+ amdgpu_amdkfd_bc250_flush_gem_va(struct amdgpu_device *adev,
+ 			       struct amdgpu_vm *vm,
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index 787710b9e..dfe52222d 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -3997,6 +3997,12 @@ module_param(bc250_flush_by_runlist, int, 0644);
+ MODULE_PARM_DESC(bc250_flush_by_runlist,
+ 	"BC-250: bitmask, rebuild runlist to invalidate TLB: 1=on unmap, 2=on map (default 0)");
+ 
++bool amdgpu_amdkfd_bc250_flush_enabled(struct amdgpu_device *adev, int site)
++{
++	return adev->pdev->device == BC250_PCI_DEVICE_ID &&
++		(bc250_flush_by_runlist & site);
++}
++
+ int kfd_bc250_flush_by_runlist(struct kfd_node *dev, int site)
+ {
+ 	struct device_queue_manager *dqm;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+index 9c74e7885..cf0f34cb5 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+@@ -32,6 +32,7 @@
+ #include "amdgpu_vm.h"
+ #include "amdgpu_hmm.h"
+ #include "amdgpu.h"
++#include "amdgpu_bc250.h"
+ #include "amdgpu_xgmi.h"
+ #include "amdgpu_reset.h"
+ #include "kfd_priv.h"
+@@ -65,6 +66,15 @@
+  */
+ static uint64_t max_svm_range_pages;
+ 
++/* Root-only, one-shot development injection. The initial-namespace TGID must
++ * match; only a CPU unmap with a successfully held queue eviction can consume it.
++ * This models a returned runlist error, not an actual scheduler hang.
++ */
++static int bc250_svm_unmap_fail_pid;
++module_param(bc250_svm_unmap_fail_pid, int, 0600);
++MODULE_PARM_DESC(bc250_svm_unmap_fail_pid,
++	"BC-250: inject one quiesced SVM CPU-unmap flush error for host TGID (default 0)");
++
+ struct criu_svm_metadata {
+ 	struct list_head list;
+ 	struct kfd_criu_svm_range_priv_data data;
+@@ -1380,7 +1390,7 @@ svm_range_unmap_from_gpu(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 
+ static int
+ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+-			  unsigned long last, uint32_t trigger)
++			  unsigned long last, uint32_t trigger, bool bc250_quiesced)
+ {
+ 	struct kfd_process_device *pdd;
+ 	struct dma_fence *fence = NULL;
+@@ -1394,10 +1404,6 @@ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+ 		return 0;
+ 	}
+ 
+-	if (prange->start == start && prange->last == last) {
+-		pr_debug("unmap svms 0x%p prange 0x%p\n", prange->svms, prange);
+-		prange->mapped_to_gpu = false;
+-	}
+ 
+ 	p = container_of(prange->svms, struct kfd_process, svms);
+ 
+@@ -1426,12 +1432,23 @@ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+ 				break;
+ 		}
+ 		kfd_flush_tlb(pdd);
+-		/* BC-250: SVM unmap (bc250 map-side flush (generic)) */
++		/* Exercise the error path only while CPU-unmap queues are stopped. */
++		if (bc250_quiesced &&
++		    cmpxchg(&bc250_svm_unmap_fail_pid, task_tgid_nr(current), 0) ==
++							 task_tgid_nr(current)) {
++			r = -EIO;
++			break;
++		}
++		/* BC-250: persistent compute queues need runlist invalidation. */
+ 		r = kfd_bc250_flush_by_runlist(pdd->dev, 1);
+ 		if (r)
+ 			break;
+ 	}
+ 
++	/* A failed/partial invalidation must not suppress later unmap attempts. */
++	if (!r && prange->start == start && prange->last == last)
++		prange->mapped_to_gpu = false;
++
+ 	return r;
+ }
+ 
+@@ -1801,7 +1818,7 @@ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 				e = min(end, prange->last);
+ 				if (e >= s)
+ 					r = svm_range_unmap_from_gpus(prange, s, e,
+-						       KFD_SVM_UNMAP_TRIGGER_UNMAP_FROM_CPU);
++						       KFD_SVM_UNMAP_TRIGGER_UNMAP_FROM_CPU, false);
+ 				svm_range_unlock(prange);
+ 				/* If unmap returns non-zero, we'll bail on the next for loop
+ 				 * iteration, so just leave r and continue
+@@ -2085,13 +2102,13 @@ svm_range_evict(struct svm_range *prange, struct mm_struct *mm,
+ 			s = max(start, pchild->start);
+ 			l = min(last, pchild->last);
+ 			if (l >= s)
+-				svm_range_unmap_from_gpus(pchild, s, l, trigger);
++				svm_range_unmap_from_gpus(pchild, s, l, trigger, false);
+ 			mutex_unlock(&pchild->lock);
+ 		}
+ 		s = max(start, prange->start);
+ 		l = min(last, prange->last);
+ 		if (l >= s)
+-			svm_range_unmap_from_gpus(prange, s, l, trigger);
++			svm_range_unmap_from_gpus(prange, s, l, trigger, false);
+ 	}
+ 
+ 	return r;
+@@ -2566,6 +2583,8 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 	unsigned long s, l;
+ 	bool unmap_parent;
+ 	uint32_t i;
++	bool bc250_guard = false;
++	int quiesce_error = 0, unmap_error = 0, r;
+ 
+ 	if (atomic_read(&prange->queue_refcount)) {
+ 		int r;
+@@ -2582,6 +2601,20 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 		return;
+ 	svms = &p->svms;
+ 
++	/* On this single-GPU ASIC, acquire an independent eviction reference
++	 * before invalidation. A returned flush error must not let CPU teardown
++	 * free backing memory while this process can still execute stale PTEs.
++	 * No BO reservation locks are held by this CPU-unmap notifier path.
++	 */
++	if (p->n_pdds == 1 &&
++	    amdgpu_amdkfd_bc250_flush_enabled(p->pdds[0]->dev->adev, 1)) {
++		bc250_guard = true;
++		quiesce_error = kfd_process_evict_queues(p, KFD_QUEUE_EVICTION_TRIGGER_SVM);
++		if (quiesce_error)
++			pr_err_ratelimited("BC-250: SVM queue stop failed (%d); hardware containment unconfirmed\n",
++					   quiesce_error);
++	}
++
+ 	pr_debug("svms 0x%p prange 0x%p [0x%lx 0x%lx] [0x%lx 0x%lx]\n", svms,
+ 		 prange, prange->start, prange->last, start, last);
+ 
+@@ -2624,15 +2657,23 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 		mutex_lock_nested(&pchild->lock, 1);
+ 		s = max(start, pchild->start);
+ 		l = min(last, pchild->last);
+-		if (l >= s)
+-			svm_range_unmap_from_gpus(pchild, s, l, trigger);
++		if (l >= s) {
++			r = svm_range_unmap_from_gpus(pchild, s, l, trigger,
++						      bc250_guard && !quiesce_error);
++			if (r && !unmap_error)
++				unmap_error = r;
++		}
+ 		svm_range_unmap_split(prange, pchild, start, last);
+ 		mutex_unlock(&pchild->lock);
+ 	}
+ 	s = max(start, prange->start);
+ 	l = min(last, prange->last);
+-	if (l >= s)
+-		svm_range_unmap_from_gpus(prange, s, l, trigger);
++	if (l >= s) {
++		r = svm_range_unmap_from_gpus(prange, s, l, trigger,
++					      bc250_guard && !quiesce_error);
++		if (r && !unmap_error)
++			unmap_error = r;
++	}
+ 	svm_range_unmap_split(prange, prange, start, last);
+ 
+ 	if (unmap_parent)
+@@ -2642,6 +2683,21 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 					SVM_OP_UPDATE_RANGE_NOTIFIER);
+ 	schedule_deferred_list_work(svms);
+ 
++	if (bc250_guard) {
++		if (!unmap_error && !quiesce_error) {
++			r = kfd_process_restore_queues(p);
++			if (r)
++				pr_err_ratelimited("BC-250: SVM queue resume failed (%d)\n", r);
++		} else if (!quiesce_error) {
++			/* Intentionally retain our reference. Nested restore work and
++			 * later successful unmaps cannot consume this extra eviction.
++			 * Process exit is the recovery boundary for this returned error.
++			 */
++			pr_err_ratelimited("BC-250: SVM unmap failed (%d), pid %d queues remain evicted\n",
++					   unmap_error, task_tgid_nr(p->lead_thread));
++		}
++	}
++
+ 	kfd_unref_process(p);
+ }
+ 
+-- 
+2.56.0
+

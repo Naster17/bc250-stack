@@ -1,0 +1,63 @@
+{
+  "release": "10.2-gfx1013-20261111-138a66f52",
+  "generated": "2026-11-12",
+  "reconstruction_proof": "D55 full offline clean rebuild of both profiles from the preserved inputs (therock/docs/development/bc250_source_d55_results/README.md)",
+  "preserved_inputs": [
+    {
+      "milestone": "D47",
+      "store": "kernel/artifacts/source-d47",
+      "content": "portable tracked-parent source replay (baseline + gitlinks + license OIDs)"
+    },
+    {
+      "milestone": "D50",
+      "store": "kernel/artifacts/source-d50",
+      "content": "69 recursive dependency locations / 64 unique payloads, 107 tracked licenses, Gloo overlay; dependencies-r1/manifest.json + parent-manifest.json"
+    },
+    {
+      "milestone": "D51",
+      "store": "kernel/artifacts/source-d51",
+      "content": "build-input kit; eight missing branches excluded for the recorded native configuration"
+    },
+    {
+      "milestone": "D52",
+      "store": "kernel/artifacts/source-d52",
+      "content": "original builder OCI image + Gitless selected source/recipe kit",
+      "key_sha256": {
+        "torch-source-d52-r1.tar.gz": "6867ed719c201cf7bc368800aa64c5e16a2e3a4c3c03485ad502684e2feb5723",
+        "builder_image": "28ad36e62398875f0ad77112b1d0f2b1cd0b3b55560d9cc38c6908cada8caa06"
+      }
+    },
+    {
+      "milestone": "D53",
+      "store": "kernel/artifacts/source-d53",
+      "content": "external ROCm/Clang/RCCL payload with per-file integrity"
+    },
+    {
+      "milestone": "D54",
+      "store": "kernel/artifacts/source-d54",
+      "content": "clean-build admission evidence + offline six input",
+      "key_sha256": {
+        "six-1.11.0.tar.gz": "70e8a77beed4562e7f14fe23a786b54f6296e34344c23bc42f07b15018ff98e9"
+      }
+    },
+    {
+      "milestone": "D55",
+      "store": "kernel/artifacts/source-d55",
+      "content": "full rebuild evidence both profiles"
+    },
+    {
+      "milestone": "D56",
+      "store": "kernel/artifacts/source-d56",
+      "content": "license manifest (87 wheel licenses), generated-file inventory, configuration/version identity"
+    }
+  ],
+  "build_recipes": "D52 kit recipes/build-fresh-{daily,rccl-single}.sh; offline invocation per D55 full_build_d55.sh (PIP_NO_INDEX=1, PYTHON_SIX_SOURCE_DIR toolchain, ccache read-only)",
+  "license_bundle": "kernel/artifacts/source-d56/license-manifest.json (87 files: 44 D47 OID matches, 41 D50 payload nested, 2 parent-vendored)",
+  "triton": {
+    "pin": "ee65ff3b85f99d52e678b252a99c8425fa46e329",
+    "patches": "patches/bc250-triton (4)",
+    "qualified_wheel_sha256": "2d65d6fefe359116521640e3cc2257bd03b4b24f6877fc8e28946ee9c57544d8"
+  },
+  "kernel_recipes": "kernel/ r2 import (kernel/provenance.json) + r3 handoff (kernel/r3/handoff/README.md); K1-K6 evidence",
+  "verification": "each store carries its own artifacts.json/receipts with per-file SHA-256; this index does not duplicate them"
+}

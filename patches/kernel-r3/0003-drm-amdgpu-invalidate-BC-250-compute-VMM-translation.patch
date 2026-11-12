@@ -1,0 +1,168 @@
+From 8f3c0d352643378629e5a73f4b9df96b7d38d94a Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 15 Oct 2026 10:41:21 +0200
+Subject: [PATCH] drm/amdgpu: invalidate BC-250 compute VMM translations after
+ GEM VA updates
+
+Explicit VMM uses GEM_VA and bypasses the KFD ioctl runlist workaround. GPU-only distinct-VA controls pass while HIP and direct ROCr fixed-VA rebinding read stale backing; ordinary KFD mapping churn restores correctness.
+
+For opted-in BC-250 compute VMs, wait for page table completion and rebuild the runlist after releasing BO reservation locks. Defer timeline publication until the invalidation succeeds and propagate errors. Other ASICs, graphics VMs and deferred PT updates retain their paths.
+---
+ drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h     | 25 +++++++++++++
+ drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c       | 30 ++++++++++++++--
+ .../drm/amd/amdkfd/kfd_device_queue_manager.c | 36 +++++++++++++++++++
+ 3 files changed, 89 insertions(+), 2 deletions(-)
+ create mode 100644 drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
+
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h b/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
+new file mode 100644
+index 000000000..14ab20772
+--- /dev/null
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_bc250.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: GPL-2.0 OR MIT */
++#ifndef AMDGPU_BC250_H
++#define AMDGPU_BC250_H
++
++#include <linux/kconfig.h>
++
++struct amdgpu_device;
++struct amdgpu_vm;
++struct dma_fence;
++
++#if IS_ENABLED(CONFIG_HSA_AMD)
++int amdgpu_amdkfd_bc250_flush_gem_va(struct amdgpu_device *adev,
++				   struct amdgpu_vm *vm,
++				   struct dma_fence *fence, int site);
++#else
++static inline int
++amdgpu_amdkfd_bc250_flush_gem_va(struct amdgpu_device *adev,
++			       struct amdgpu_vm *vm,
++			       struct dma_fence *fence, int site)
++{
++	return 0;
++}
++#endif
++
++#endif
+diff --git a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+index f754a4a3a..7c4b46b66 100644
+--- a/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
++++ b/drivers/gpu/drm/amd/amdgpu/amdgpu_gem.c
+@@ -42,6 +42,7 @@
+ #include <drm/drm_syncobj.h>
+ 
+ #include "amdgpu.h"
++#include "amdgpu_bc250.h"
+ #include "amdgpu_display.h"
+ #include "amdgpu_dma_buf.h"
+ #include "amdgpu_hmm.h"
+@@ -847,8 +848,10 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 	struct amdgpu_bo_va *bo_va;
+ 	struct drm_syncobj *timeline_syncobj = NULL;
+ 	struct dma_fence_chain *timeline_chain = NULL;
++	struct dma_fence *bc250_fence = NULL;
+ 	struct drm_exec exec;
+ 	uint64_t vm_size, tmp;
++	bool bc250_update = false;
+ 	int r = 0;
+ 
+ 	/* Validate virtual address range against reserved regions. */
+@@ -997,7 +1000,13 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 
+ 		fence = amdgpu_gem_va_update_vm(adev, &fpriv->vm, bo_va,
+ 						args->operation);
+-		if (timeline_syncobj) {
++		if (adev->pdev->device == 0x13fe && fpriv->vm.is_compute_context) {
++			/* Defer timeline publication until PT completion and runlist
++			 * invalidation, outside the BO reservation critical section.
++			 */
++			bc250_update = true;
++			bc250_fence = dma_fence_get(fence);
++		} else if (timeline_syncobj) {
+ 			if (!args->vm_timeline_point) {
+ 				/* Replace the existing fence when no point is given. */
+ 				drm_syncobj_replace_fence(timeline_syncobj,
+@@ -1016,10 +1025,27 @@ int amdgpu_gem_va_ioctl(struct drm_device *dev, void *data,
+ 	}
+ 
+ error:
++	drm_exec_fini(&exec);
++	if (!r && bc250_update) {
++		int site = args->operation == AMDGPU_VA_OP_MAP ? 2 :
++			   args->operation == AMDGPU_VA_OP_REPLACE ? 3 : 1;
++
++		r = amdgpu_amdkfd_bc250_flush_gem_va(adev, &fpriv->vm,
++						   bc250_fence, site);
++		if (!r && timeline_syncobj) {
++			if (!args->vm_timeline_point) {
++				drm_syncobj_replace_fence(timeline_syncobj, bc250_fence);
++			} else {
++				drm_syncobj_add_point(timeline_syncobj, timeline_chain,
++						      bc250_fence, args->vm_timeline_point);
++				timeline_chain = NULL;
++			}
++		}
++	}
++	dma_fence_put(bc250_fence);
+ 	dma_fence_chain_free(timeline_chain);
+ 	if (timeline_syncobj)
+ 		drm_syncobj_put(timeline_syncobj);
+-	drm_exec_fini(&exec);
+ error_put_gobj:
+ 	drm_gem_object_put(gobj);
+ 	return r;
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index 2d5b5529f..787710b9e 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -35,6 +35,7 @@
+ #include "cik_regs.h"
+ #include "kfd_kernel_queue.h"
+ #include "amdgpu_amdkfd.h"
++#include "amdgpu_bc250.h"
+ #include "amdgpu_reset.h"
+ #include "amdgpu_sdma.h"
+ #include "mes_v11_api_def.h"
+@@ -4023,3 +4024,38 @@ int kfd_bc250_flush_by_runlist(struct kfd_node *dev, int site)
+ 			"BC-250: runlist rebuild flush failed (%d)\n", r);
+ 	return r;
+ }
++
++/* GEM_VA is used by explicit VMM and bypasses the KFD map/unmap ioctls.
++ * PT completion alone leaves persistent compute queues using stale translations
++ * on BC-250. The caller must drop all BO/VM reservation locks before entering:
++ * rebuilding queues takes dqm_lock, whose normal order precedes BO locks.
++ */
++int amdgpu_amdkfd_bc250_flush_gem_va(struct amdgpu_device *adev,
++				   struct amdgpu_vm *vm,
++				   struct dma_fence *fence, int site)
++{
++	struct kfd_dev *kfd = adev->kfd.dev;
++	unsigned int i;
++	int r;
++
++	if (adev->pdev->device != BC250_PCI_DEVICE_ID ||
++	    !vm->is_compute_context || !(bc250_flush_by_runlist & site) ||
++	    !kfd || !kfd->init_complete)
++		return 0;
++
++	if (fence) {
++		r = dma_fence_wait(fence, true);
++		if (r < 0)
++			return r;
++		r = dma_fence_get_status(fence);
++		if (r < 0)
++			return r;
++	}
++
++	for (i = 0; i < kfd->num_nodes; i++) {
++		r = kfd_bc250_flush_by_runlist(kfd->nodes[i], site);
++		if (r)
++			return r;
++	}
++	return 0;
++}
+-- 
+2.56.0
+

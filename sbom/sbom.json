@@ -1,0 +1,87 @@
+{
+  "release": "10.2-gfx1013-20261111-138a66f52",
+  "host105_release_id": "10.2-gfx1013-20261111-138a66f52-host105",
+  "generated": "2026-11-12",
+  "native_cohort": {
+    "image": "1bb4ac0ed3766d9c70431c1d5119e03cd4d10e710f4c04cd54254b5b87cd45d5",
+    "torch_revision": "a5249802372882dedccb91d3fd4d73be9fcdf2bd",
+    "torch_version": "2.13.0a0+gfx1013",
+    "triton_revision": "ee65ff3b85f99d52e678b252a99c8425fa46e329",
+    "triton_wheel_sha256": "2d65d6fefe359116521640e3cc2257bd03b4b24f6877fc8e28946ee9c57544d8",
+    "rocm_libraries_revision": "8389197c134a7337932021ab7137987a585664ae",
+    "rocm_systems_revision": "1f9609fd69c4923291f58934495520fe62e66ef8",
+    "therock_port_revision": "62ab2437c9fd80e011b23578ffbf9208d85cda64",
+    "effective_therock_port_revision": "8e6416f394f83b9ba4269eb3ec7fce63c995be98",
+    "sdk_sentinel_librocprofiler": "2a975370ba4eb1c2fe39e406ff36b175f554a49d0aa19febbd326f641fcb590b",
+    "libamdhip64": "a1162308076a99ff5cf5e4e15ca8bff53928d8bc4e624c42033d7e15dd2d1e3b",
+    "libMIOpen": "381eac05240e33acced9472fb7c3071afe8bc4f434407e67a29ce64423b935ac",
+    "rccl": "rccl-b034/install-r1 (librccl.so.1.0)",
+    "sdma": false,
+    "target_arch": "gfx1013"
+  },
+  "consumers": {
+    "torchvision": {
+      "version": "0.28.0+gfx1013",
+      "source_revision": "8fb87713a24951e639c494b0f2a8a81b5f8e33a6",
+      "wheel_sha256": "f40142eb0c01d9ab4f394cbc24ef1d56bc54e53ca4ab6579020aa94edb234881"
+    },
+    "torchaudio": {
+      "version": "2.11.0+gfx1013",
+      "source_revision": "1ae7f5d8023e82be51b500399a37fceb45481a2b",
+      "wheel_sha256": "4ac9faa872e4138be0f7242f0c4a988ca63a4eb51df3562c7096e69a0b901328"
+    },
+    "torchcodec": {
+      "version": "0.17.0+gfx1013",
+      "source_revision": "3eecace02076800cf6aa9be6364ed2f1f611548d",
+      "wheel_sha256": "0551a76dcc4c9cc950cd8045855ae7a235c9b0f8c6edd220396828a88d19e09d"
+    },
+    "onnx_stack": {
+      "onnx": "1.23.2",
+      "onnxscript": "0.7.2",
+      "onnx-ir": "1.1.0",
+      "onnxruntime": "1.31.0",
+      "ml-dtypes": "0.6.0",
+      "protobuf": "7.36.2",
+      "flatbuffers": "25.12.19"
+    },
+    "onnx_package_manifest_sha256": "ef80ef97ed32cbbabe3e0533a2a182d74d01acc9f281a74a3c92d175348a9d20"
+  },
+  "opt_in_modules": {
+    "bc250_fft": {
+      "version": "0.1.0",
+      "module_sha256": "50bada1588a98dc2a18eb5948a231a76ec7aaede8fe6198b503c338ef9820fe6"
+    },
+    "bc250_sparse": {
+      "version": "0.1.0",
+      "module_sha256": "272cc68c8e898e9f8eed5816a55b5ae9e2076861b575304713daae47f0b300a6"
+    }
+  },
+  "repairs_and_tuning": {
+    "miopen_precision_repair": {
+      "source_revision": "e1d8d1ff920",
+      "cache_key_version": 1,
+      "library_sha256": "381eac05240e33acced9472fb7c3071afe8bc4f434407e67a29ce64423b935ac",
+      "scope": "gfx1013 HIP-direct forward FP32 accumulation",
+      "qualification": "PLAN-02"
+    },
+    "rocblas_gemm_tuning_sha256": "1f2947a88ee69a3d3854ec7615f209dadd19292489b7df3d101c5941727846c0"
+  },
+  "kernels": {
+    "host104": "7.1.5-bc250rocm-r2 (boot aafacc82 -> be4ef4dd -> 73817cc1 observed; r2 fallback preserved)",
+    "host105": "7.2.10-bc250rocm-r3 (boot 08ecaaaa; grub r2 one-shot fallback preserved)"
+  },
+  "launchers": {
+    "host104_bc250_torch_sha256": "9c8b3c7841436cd4615664dc4435d9a9ad23794d5f1d3080bf63e0e801948d10",
+    "host105_bc250_torch_sha256": "9c8b3c7841436cd4615664dc4435d9a9ad23794d5f1d3080bf63e0e801948d10",
+    "note": "D59 allowlist binds D49 + release runtime identities; SDK sentinel check unchanged"
+  },
+  "runtime_identities": {
+    "daily": "86d94f43f629b84572c2fc8639ef64beb96b32647439533f97260c7cd4e243fc",
+    "rccl-single": "f183bd3f22ec55dcd1b1e10b44afb94f9edcb076b3224c34ad630f993fb0d67c"
+  },
+  "qualification_evidence": {
+    "d58_assembly": "therock/docs/development/bc250_release_d58_results/README.md",
+    "d59_104_qualification": "therock/docs/development/bc250_release_d59_results/README.md",
+    "d60_105_deployment": "therock/docs/development/bc250_release_d60_results/README.md"
+  }
+}

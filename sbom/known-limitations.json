@@ -1,0 +1,35 @@
+{
+  "release": "10.2-gfx1013-20261111-138a66f52",
+  "generated": "2026-11-12",
+  "hardware": [
+    "No MFMA/WMMA matrix instructions; cannot be added in software",
+    "SDMA disabled; experimental VM heap disabled (safe defaults)",
+    "12 CPUs / ~15 GiB RAM per board; single all-resident 1B FSDP state floor exceeds physical RAM (D43)",
+    "Advanced hardware profiling (PC sampling/RDC) unqualified; attained-clock/temperature/power telemetry semantics unvalidated (N4)"
+  ],
+  "software_subsets": [
+    "Scalar backends have documented API/type/operator subsets",
+    "Production nonsymmetric eig uses host LAPACK; scalable sparse factorization differs from the bounded dense-LU fallback (bc250_sparse)",
+    "Math SDPA qualified; tiled/hybrid attention has dropout/compile/graph boundaries (sdpa_tiled block)",
+    "W8 quantization exists; NF4/packed INT4/full QLoRA are separate unqualified feasibility work",
+    "FP16 PEFT and broader training recipes remain separate qualification work; qualified policies are FP32/BF16 per D26-D31"
+  ],
+  "performance": [
+    "Two-board FSDP ~68x slower than single-board when the model fits (D43/L01 measured 1.231x warm-update throughput only in its particular application); no general two-board speedup claim",
+    "D43 median 53.365 s/update at 1.024B/seq128/global2; wall times are admission costs, not performance guarantees"
+  ],
+  "release_boundaries": [
+    "Release is immutable (mutable=false); torch remains an editable install from the materialized tree",
+    "Rebuilt binaries are reconstruction proof, not the shipped artifact: daily libtorch_cpu and rccl libraries differ from the deployed cohort (D56 delta investigation; working-tree drift hypothesis); the release ships the qualified deployed cohort",
+    "Triton provenance is pin+patches+qualified wheel; no Triton rebuild demonstration (user-accepted scope decision)",
+    "No long-run stability soak; PLAN-06 bounded stability scope only; unknown Python/KFD/clocksource causes remain separate",
+    "finetune-n7 user application excluded from all qualification; owned fixtures only"
+  ],
+  "deployment": [
+    "host104 selection: D49 cohort pending D61 promotion; host105: release active (D60)",
+    "Boot fallbacks preserved: .104 r2 boot path; .105 grub r2 one-shot + M105.1 boot-health package",
+    "Rollback assets preserved: .104 D49 cohort + historical releases; .105 r4 cohort + D01 + retained base + M105.1",
+    "Publication/distribution requires explicit user instruction; not performed"
+  ],
+  "superseded_runtime_limitation": "The runtime.json limitations string \"Mutable developer prefix\" describes the dev cohort; the release itself is immutable.Editable Torch remains."
+}

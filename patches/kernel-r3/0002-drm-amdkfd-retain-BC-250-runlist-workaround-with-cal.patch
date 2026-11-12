@@ -1,0 +1,159 @@
+From 84995f1a85188cde56910729214b0a68a7e402da Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Wed, 14 Oct 2026 23:17:34 +0200
+Subject: [PATCH 2/2] drm/amdkfd: retain BC-250 runlist workaround with caller
+ error propagation
+
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_chardev.c      | 18 +++++++
+ .../drm/amd/amdkfd/kfd_device_queue_manager.c | 49 +++++++++++++++++++
+ .../drm/amd/amdkfd/kfd_device_queue_manager.h |  7 +++
+ drivers/gpu/drm/amd/amdkfd/kfd_svm.c          |  9 ++++
+ 4 files changed, 83 insertions(+)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+index 2e85a1de5..4b170d1ee 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_chardev.c
+@@ -1417,6 +1417,17 @@ static int kfd_ioctl_map_memory_to_gpu(struct file *filep,
+ 		if (WARN_ON_ONCE(!peer_pdd))
+ 			continue;
+ 		kfd_flush_tlb(peer_pdd);
++		/* BC-250: stale invalid translations survive the broken PASID
++		 * sweep and fault on first touch of a fresh mapping (bc250 map-side flush (generic)) */
++		/* Mapping/n_success already committed, as for the sync error
++		 * above. Preserve the first error while flushing other peers.
++		 */
++		{
++			int flush_err = kfd_bc250_flush_by_runlist(peer_pdd->dev, 2);
++
++			if (!err)
++				err = flush_err;
++		}
+ 	}
+ 	kfree(devices_arr);
+ 
+@@ -1504,6 +1515,13 @@ static int kfd_ioctl_unmap_memory_from_gpu(struct file *filep,
+ 			continue;
+ 		if (flush_tlb)
+ 			kfd_flush_tlb(peer_pdd);
++		/* BC-250: rebuild the runlist so the firmware invalidates the
++		 * compute TLB (see kfd_device_queue_manager.c). Called here with
++		 * p->mutex held and dqm_lock free.
++		 */
++		err = kfd_bc250_flush_by_runlist(peer_pdd->dev, 1);
++		if (err)
++			goto sync_memory_failed; /* Retain DMA mapping until retry. */
+ 
+ 		/* Remove dma mapping after tlb flush to avoid IO_PAGE_FAULT */
+ 		err = amdgpu_amdkfd_gpuvm_dmaunmap_mem(mem, peer_pdd->drm_priv);
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+index 487cf746c..2d5b5529f 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.c
+@@ -3974,3 +3974,52 @@ int dqm_debugfs_hang_hws(struct device_queue_manager *dqm)
+ }
+ 
+ #endif
++
++/*
++ * BC-250 gfx1013 opt-in runlist-based compute TLB workaround.
++ * Retain the established map/unmap policy while reviewing native invalidation.
++ * A queue preempt/runlist rebuild is used on this ASIC where the prior stack
++ * could retain stale compute translations. This is not a general gfx10 policy.
++ *
++ * Takes dqm_lock: callers must not hold it. In particular, do not call from
++ * kfd_flush_tlb(), allocate_vmid() or queue restore paths holding dqm_lock.
++ * ioctl call sites follow the existing p->mutex -> dqm_lock order where held;
++ * the map post-sync phase runs after p->mutex release. SVM callers propagate
++ * errors through their existing partially-completed page-table update paths.
++ * Callers must preserve memory/DMA lifetime on failed invalidation.
++ * No automatic reset is introduced; existing recovery policy remains separate.
++ */
++#define BC250_PCI_DEVICE_ID 0x13FE
++
++static int bc250_flush_by_runlist;
++module_param(bc250_flush_by_runlist, int, 0644);
++MODULE_PARM_DESC(bc250_flush_by_runlist,
++	"BC-250: bitmask, rebuild runlist to invalidate TLB: 1=on unmap, 2=on map (default 0)");
++
++int kfd_bc250_flush_by_runlist(struct kfd_node *dev, int site)
++{
++	struct device_queue_manager *dqm;
++	int r;
++
++	if (!(bc250_flush_by_runlist & site) || !dev || !dev->adev || !dev->adev->pdev)
++		return 0;
++	if (dev->adev->pdev->device != BC250_PCI_DEVICE_ID)
++		return 0;
++
++	dqm = dev->dqm;
++	/* Only meaningful under hardware scheduling: the firmware reassigns
++	 * VMIDs when the runlist is rebuilt. Without HWS there is no runlist.
++	 */
++	if (!dqm || dqm->sched_policy == KFD_SCHED_POLICY_NO_HWS)
++		return 0;
++
++	dqm_lock(dqm);
++	r = execute_queues_cpsch(dqm, KFD_UNMAP_QUEUES_FILTER_DYNAMIC_QUEUES, 0,
++				 USE_DEFAULT_GRACE_PERIOD);
++	dqm_unlock(dqm);
++
++	if (r)
++		dev_err_ratelimited(dev->adev->dev,
++			"BC-250: runlist rebuild flush failed (%d)\n", r);
++	return r;
++}
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+index 641b8ada8..c387e044e 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_device_queue_manager.h
+@@ -377,4 +377,11 @@ static inline void update_dqm_wait_times(struct device_queue_manager *dqm)
+ }
+ 
+ 
++
++/* BC-250: rebuild the runlist so the firmware invalidates the compute TLB.
++ * Full documentation in kfd_device_queue_manager.c above
++ * bc250_flush_by_runlist. Takes dqm_lock -- never call with it held.
++ */
++int kfd_bc250_flush_by_runlist(struct kfd_node *dev, int site); /* bc250 map-side flush (generic) */
++
+ #endif /* KFD_DEVICE_QUEUE_MANAGER_H_ */
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+index 0900bb233..9c74e7885 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+@@ -36,6 +36,7 @@
+ #include "amdgpu_reset.h"
+ #include "kfd_priv.h"
+ #include "kfd_svm.h"
++#include "kfd_device_queue_manager.h"
+ #include "kfd_migrate.h"
+ #include "kfd_smi_events.h"
+ 
+@@ -1425,6 +1426,10 @@ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+ 				break;
+ 		}
+ 		kfd_flush_tlb(pdd);
++		/* BC-250: SVM unmap (bc250 map-side flush (generic)) */
++		r = kfd_bc250_flush_by_runlist(pdd->dev, 1);
++		if (r)
++			break;
+ 	}
+ 
+ 	return r;
+@@ -1572,6 +1577,10 @@ svm_range_map_to_gpus(struct svm_range *prange, unsigned long offset,
+ 		}
+ 
+ 		kfd_flush_tlb(pdd);
++		/* BC-250: rebuild on SVM map, the case that actually faults (bc250 map-side flush (generic)) */
++		r = kfd_bc250_flush_by_runlist(pdd->dev, 2);
++		if (r)
++			break;
+ 	}
+ 
+ 	return r;
+-- 
+2.56.0
+

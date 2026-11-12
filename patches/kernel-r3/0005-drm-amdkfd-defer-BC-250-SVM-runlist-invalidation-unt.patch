@@ -1,0 +1,302 @@
+From 41db89c103b183c82c05bbe099ea96ad1ddee8d1 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 15 Oct 2026 11:19:04 +0200
+Subject: [PATCH] drm/amdkfd: defer BC-250 SVM runlist invalidation until BO
+ unlock
+
+Collect PT fences and map/unmap site bits during validation, then drain and invalidate under the notifier lock after releasing BO reservations. Keep caller-held range/mmap lifetime locks and flush completed work even when a later VMA fails. Preserve in-place fence waits as the allocation-failure fallback.
+
+Correct the PROT_NONE validation branch to compare inclusive page indices instead of byte bounds. A targeted baseline trace recorded no unmap of the protected page. CPU-unmap containment remains separate; failed scheduler stops and retry-fault/multi-GPU cases remain unqualified.
+---
+ drivers/gpu/drm/amd/amdkfd/kfd_svm.c | 143 ++++++++++++++++++++++-----
+ 1 file changed, 117 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+index cf0f34cb5..6752a29f0 100644
+--- a/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
++++ b/drivers/gpu/drm/amd/amdkfd/kfd_svm.c
+@@ -1388,15 +1388,73 @@ svm_range_unmap_from_gpu(struct amdgpu_device *adev, struct amdgpu_vm *vm,
+ 				      fence);
+ }
+ 
++struct svm_validate_context {
++	struct kfd_process *process;
++	struct svm_range *prange;
++	bool intr;
++	DECLARE_BITMAP(bitmap, MAX_GPU_INSTANCE);
++	struct drm_exec exec;
++	struct amdgpu_sync bc250_sync;
++	unsigned int bc250_sites[MAX_GPU_INSTANCE];
++	bool bc250_clear_mapped;
++};
++
++
++/* Remember every PT fence context while reservations protect its lifetime.
++ * If tracking allocation fails, wait in place as the old path did; runlist
++ * invalidation still happens only after all BO reservations are released.
++ */
++static int svm_range_bc250_defer(struct svm_validate_context *ctx,
++				 unsigned int gpuidx, struct dma_fence *fence,
++				 unsigned int site)
++{
++	int r;
++
++	ctx->bc250_sites[gpuidx] |= site;
++	r = amdgpu_sync_fence(&ctx->bc250_sync, fence, GFP_KERNEL);
++	if (r)
++		r = dma_fence_wait(fence, false);
++	return r;
++}
++
++/* The caller has dropped ctx->exec and still owns the range's migrate_mutex,
++ * mmap read lock and SVM read lock. The notifier lock serializes this final
++ * invalidation with concurrent CPU eviction; no BO locks nest inside DQM here.
++ */
++static int svm_range_bc250_flush(struct svm_validate_context *ctx)
++{
++	struct kfd_process_device *pdd;
++	unsigned int gpuidx;
++	int r;
++
++	r = amdgpu_sync_wait(&ctx->bc250_sync, false);
++	if (r)
++		return r;
++	for (gpuidx = 0; gpuidx < MAX_GPU_INSTANCE; gpuidx++) {
++		if (!ctx->bc250_sites[gpuidx])
++			continue;
++		pdd = kfd_process_device_from_gpuidx(ctx->process, gpuidx);
++		if (!pdd)
++			return -EINVAL;
++		kfd_flush_tlb(pdd);
++		r = kfd_bc250_flush_by_runlist(pdd->dev, ctx->bc250_sites[gpuidx]);
++		if (r)
++			return r;
++	}
++	return 0;
++}
++
+ static int
+ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+-			  unsigned long last, uint32_t trigger, bool bc250_quiesced)
++			  unsigned long last, uint32_t trigger, bool bc250_quiesced,
++			  struct svm_validate_context *ctx)
+ {
+ 	struct kfd_process_device *pdd;
+ 	struct dma_fence *fence = NULL;
+ 	struct kfd_process *p;
+ 	uint32_t gpuidx;
+ 	int r = 0;
++	bool deferred = false;
+ 
+ 	if (!prange->mapped_to_gpu) {
+ 		pr_debug("prange 0x%p [0x%lx 0x%lx] not mapped to GPU\n",
+@@ -1424,6 +1482,16 @@ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+ 		if (r)
+ 			break;
+ 
++		if (ctx && amdgpu_amdkfd_bc250_flush_enabled(pdd->dev->adev, 1)) {
++			deferred = true;
++			r = svm_range_bc250_defer(ctx, gpuidx, fence, 1);
++			dma_fence_put(fence);
++			fence = NULL;
++			if (r)
++				break;
++			continue;
++		}
++
+ 		if (fence) {
+ 			r = dma_fence_wait(fence, false);
+ 			dma_fence_put(fence);
+@@ -1446,8 +1514,12 @@ svm_range_unmap_from_gpus(struct svm_range *prange, unsigned long start,
+ 	}
+ 
+ 	/* A failed/partial invalidation must not suppress later unmap attempts. */
+-	if (!r && prange->start == start && prange->last == last)
+-		prange->mapped_to_gpu = false;
++	if (!r && prange->start == start && prange->last == last) {
++		if (deferred)
++			ctx->bc250_clear_mapped = true;
++		else
++			prange->mapped_to_gpu = false;
++	}
+ 
+ 	return r;
+ }
+@@ -1545,7 +1617,7 @@ svm_range_map_to_gpu(struct kfd_process_device *pdd, struct svm_range *prange,
+ static int
+ svm_range_map_to_gpus(struct svm_range *prange, unsigned long offset,
+ 		      unsigned long npages, bool readonly,
+-		      unsigned long *bitmap, bool wait, bool flush_tlb)
++		      struct svm_validate_context *ctx, bool wait, bool flush_tlb)
+ {
+ 	struct kfd_process_device *pdd;
+ 	struct amdgpu_device *bo_adev = NULL;
+@@ -1553,12 +1625,13 @@ svm_range_map_to_gpus(struct svm_range *prange, unsigned long offset,
+ 	struct dma_fence *fence = NULL;
+ 	uint32_t gpuidx;
+ 	int r = 0;
++	bool defer;
+ 
+ 	if (prange->svm_bo && prange->ttm_res)
+ 		bo_adev = prange->svm_bo->node->adev;
+ 
+ 	p = container_of(prange->svms, struct kfd_process, svms);
+-	for_each_set_bit(gpuidx, bitmap, MAX_GPU_INSTANCE) {
++	for_each_set_bit(gpuidx, ctx->bitmap, MAX_GPU_INSTANCE) {
+ 		pr_debug("mapping to gpu idx 0x%x\n", gpuidx);
+ 		pdd = kfd_process_device_from_gpuidx(p, gpuidx);
+ 		if (!pdd) {
+@@ -1576,13 +1649,23 @@ svm_range_map_to_gpus(struct svm_range *prange, unsigned long offset,
+ 			continue;
+ 		}
+ 
++		defer = amdgpu_amdkfd_bc250_flush_enabled(pdd->dev->adev, 2);
+ 		r = svm_range_map_to_gpu(pdd, prange, offset, npages, readonly,
+ 					 prange->dma_addr[gpuidx],
+-					 bo_adev, wait ? &fence : NULL,
++					 bo_adev, (wait || defer) ? &fence : NULL,
+ 					 flush_tlb);
+ 		if (r)
+ 			break;
+ 
++		if (defer) {
++			r = svm_range_bc250_defer(ctx, gpuidx, fence, 2);
++			dma_fence_put(fence);
++			fence = NULL;
++			if (r)
++				break;
++			continue;
++		}
++
+ 		if (fence) {
+ 			r = dma_fence_wait(fence, false);
+ 			dma_fence_put(fence);
+@@ -1594,22 +1677,11 @@ svm_range_map_to_gpus(struct svm_range *prange, unsigned long offset,
+ 		}
+ 
+ 		kfd_flush_tlb(pdd);
+-		/* BC-250: rebuild on SVM map, the case that actually faults (bc250 map-side flush (generic)) */
+-		r = kfd_bc250_flush_by_runlist(pdd->dev, 2);
+-		if (r)
+-			break;
+ 	}
+ 
+ 	return r;
+ }
+ 
+-struct svm_validate_context {
+-	struct kfd_process *process;
+-	struct svm_range *prange;
+-	bool intr;
+-	DECLARE_BITMAP(bitmap, MAX_GPU_INSTANCE);
+-	struct drm_exec exec;
+-};
+ 
+ static int svm_range_reserve_bos(struct svm_validate_context *ctx, bool intr)
+ {
+@@ -1701,6 +1773,8 @@ static void *kfd_svm_page_owner(struct kfd_process *p, int32_t gpuidx)
+  * 4-d. Update GPU page table
+  * 4.e. Release notifier lock
+  * 5. Release page table (and SVM BO) reservation
++ * 6. BC-250: wait captured PT fences, then invalidate runlist under notifier
++ *    lock; caller-held range/mmap locks preserve lifetime without BO locks.
+  */
+ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 				      unsigned long map_start, unsigned long map_last,
+@@ -1720,6 +1794,7 @@ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 	ctx->process = container_of(prange->svms, struct kfd_process, svms);
+ 	ctx->prange = prange;
+ 	ctx->intr = intr;
++	amdgpu_sync_create(&ctx->bc250_sync);
+ 
+ 	if (gpuidx < MAX_GPU_INSTANCE) {
+ 		bitmap_zero(ctx->bitmap, MAX_GPU_INSTANCE);
+@@ -1814,11 +1889,12 @@ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 				svm_range_lock(prange);
+ 				if (vma->vm_flags & VM_WRITE)
+ 					pr_debug("VM_WRITE without VM_READ is not supported");
+-				s = max(start, prange->start);
+-				e = min(end, prange->last);
++				s = max(addr >> PAGE_SHIFT, prange->start);
++				e = min((next - 1) >> PAGE_SHIFT, prange->last);
+ 				if (e >= s)
+ 					r = svm_range_unmap_from_gpus(prange, s, e,
+-						       KFD_SVM_UNMAP_TRIGGER_UNMAP_FROM_CPU, false);
++						       KFD_SVM_UNMAP_TRIGGER_UNMAP_FROM_CPU,
++						       false, ctx);
+ 				svm_range_unlock(prange);
+ 				/* If unmap returns non-zero, we'll bail on the next for loop
+ 				 * iteration, so just leave r and continue
+@@ -1875,7 +1951,7 @@ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 				offset = map_start_vma - prange->start;
+ 				npages = map_last_vma - map_start_vma + 1;
+ 				r = svm_range_map_to_gpus(prange, offset, npages, readonly,
+-							  ctx->bitmap, wait, flush_tlb);
++							  ctx, wait, flush_tlb);
+ 			}
+ 		}
+ 
+@@ -1888,10 +1964,25 @@ static int svm_range_validate_and_map(struct mm_struct *mm,
+ 	}
+ 
+ 	svm_range_unreserve_bos(ctx);
+-	if (!r)
++	/* Publish success only after the post-reservation invalidation. Drain
++	 * prior successful updates even if a later VMA failed validation.
++	 */
++	svm_range_lock(prange);
++	{
++		int flush_error = svm_range_bc250_flush(ctx);
++
++		if (!r)
++			r = flush_error;
++	}
++	if (!r) {
++		if (ctx->bc250_clear_mapped)
++			prange->mapped_to_gpu = false;
+ 		prange->validate_timestamp = ktime_get_boottime();
++	}
++	svm_range_unlock(prange);
+ 
+ free_ctx:
++	amdgpu_sync_free(&ctx->bc250_sync);
+ 	kfree(ctx);
+ 
+ 	return r;
+@@ -2102,13 +2193,13 @@ svm_range_evict(struct svm_range *prange, struct mm_struct *mm,
+ 			s = max(start, pchild->start);
+ 			l = min(last, pchild->last);
+ 			if (l >= s)
+-				svm_range_unmap_from_gpus(pchild, s, l, trigger, false);
++				svm_range_unmap_from_gpus(pchild, s, l, trigger, false, NULL);
+ 			mutex_unlock(&pchild->lock);
+ 		}
+ 		s = max(start, prange->start);
+ 		l = min(last, prange->last);
+ 		if (l >= s)
+-			svm_range_unmap_from_gpus(prange, s, l, trigger, false);
++			svm_range_unmap_from_gpus(prange, s, l, trigger, false, NULL);
+ 	}
+ 
+ 	return r;
+@@ -2659,7 +2750,7 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 		l = min(last, pchild->last);
+ 		if (l >= s) {
+ 			r = svm_range_unmap_from_gpus(pchild, s, l, trigger,
+-						      bc250_guard && !quiesce_error);
++						      bc250_guard && !quiesce_error, NULL);
+ 			if (r && !unmap_error)
+ 				unmap_error = r;
+ 		}
+@@ -2670,7 +2761,7 @@ svm_range_unmap_from_cpu(struct mm_struct *mm, struct svm_range *prange,
+ 	l = min(last, prange->last);
+ 	if (l >= s) {
+ 		r = svm_range_unmap_from_gpus(prange, s, l, trigger,
+-					      bc250_guard && !quiesce_error);
++					      bc250_guard && !quiesce_error, NULL);
+ 		if (r && !unmap_error)
+ 			unmap_error = r;
+ 	}
+-- 
+2.56.0
+

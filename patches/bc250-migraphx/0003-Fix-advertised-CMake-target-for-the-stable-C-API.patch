@@ -1,0 +1,25 @@
+From 4797a61125bbec318005969f8497dbd50849cd6e Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Sun, 25 Oct 2026 15:20:52 +0100
+Subject: [PATCH 3/5] Fix advertised CMake target for the stable C API
+
+---
+ src/CMakeLists.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 3de0c3c25..e46153f59 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -457,7 +457,7 @@ endif()
+ target_compile_definitions(migraphx PUBLIC MIGRAPHX_CXX_COMPILER="${CMAKE_CXX_COMPILER}")
+ 
+ rocm_export_targets(
+-  TARGETS migraphx::migraphx_c
++  TARGETS migraphx::c
+   NAMESPACE migraphx::
+   DEPENDS
+     Threads
+-- 
+2.56.0
+

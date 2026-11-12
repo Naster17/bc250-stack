@@ -1,0 +1,116 @@
+From 0957f1aa4717bb5ea19545bdcb01d6899e94bb9f Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 15 Oct 2026 11:31:10 +0200
+Subject: [PATCH] drm/amd/display: clear only implemented HPD IRQ sources
+ during init
+
+Query the active IRQ table before bulk HPD/HPDRX clearing. DCN 2.0.1 implements two pairs, while the old loop invoked dummy callbacks for the remaining eight enum sources, producing both ASSERT WARNs and dummy set/ack errors. Reject empty entries too; preserve invalid-operation diagnostics and ordinary connector enabling.
+
+Expose the capability through DC and add a debug-only per-source clear trace. Do not infer HPD presence from display-pipe counts or disable Display Core.
+---
+ .../drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c |  7 +++++-
+ drivers/gpu/drm/amd/display/dc/core/dc.c      |  6 +++++
+ drivers/gpu/drm/amd/display/dc/dc.h           |  1 +
+ .../gpu/drm/amd/display/dc/irq/irq_service.c  | 22 +++++++++++++++++++
+ .../display/include/irq_service_interface.h   |  4 ++++
+ 5 files changed, 39 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
+index d59434e01..da41161c5 100644
+--- a/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
++++ b/drivers/gpu/drm/amd/display/amdgpu_dm/amdgpu_dm_irq.c
+@@ -917,8 +917,13 @@ void amdgpu_dm_hpd_init(struct amdgpu_device *adev)
+ 	int i;
+ 	bool use_polling = false;
+ 
+-	/* First, clear all hpd and hpdrx interrupts */
++	/* Clear implemented HPD/HPDRX sources, including unused physical pins.
++	 * Some ASIC tables have fewer entries than the six-pin enum range.
++	 */
+ 	for (i = DC_IRQ_SOURCE_HPD1; i <= DC_IRQ_SOURCE_HPD6RX; i++) {
++		if (!dc_interrupt_is_supported(adev->dm.dc, i))
++			continue;
++		drm_dbg_kms(dev, "Clearing implemented HPD IRQ source=%d\n", i);
+ 		if (!amdgpu_dm_irq_set(adev, i, false))
+ 			drm_err(dev, "Failed to clear hpd(rx) source=%d on init\n",
+ 				i);
+diff --git a/drivers/gpu/drm/amd/display/dc/core/dc.c b/drivers/gpu/drm/amd/display/dc/core/dc.c
+index ebfed18e7..235771d9b 100644
+--- a/drivers/gpu/drm/amd/display/dc/core/dc.c
++++ b/drivers/gpu/drm/amd/display/dc/core/dc.c
+@@ -6151,6 +6151,12 @@ enum dc_irq_source dc_interrupt_to_irq_source(
+ 	return dal_irq_service_to_irq_source(dc->res_pool->irqs, src_id, ext_id);
+ }
+ 
++bool dc_interrupt_is_supported(struct dc *dc, enum dc_irq_source src)
++{
++	return dc && dc->res_pool &&
++		dal_irq_service_is_supported(dc->res_pool->irqs, src);
++}
++
+ /*
+  * dc_interrupt_set() - Enable/disable an AMD hw interrupt source
+  */
+diff --git a/drivers/gpu/drm/amd/display/dc/dc.h b/drivers/gpu/drm/amd/display/dc/dc.h
+index 79184384c..16a4bc853 100644
+--- a/drivers/gpu/drm/amd/display/dc/dc.h
++++ b/drivers/gpu/drm/amd/display/dc/dc.h
+@@ -2882,6 +2882,7 @@ enum dc_irq_source dc_interrupt_to_irq_source(
+ 		struct dc *dc,
+ 		uint32_t src_id,
+ 		uint32_t ext_id);
++bool dc_interrupt_is_supported(struct dc *dc, enum dc_irq_source src);
+ bool dc_interrupt_set(struct dc *dc, enum dc_irq_source src, bool enable);
+ void dc_interrupt_ack(struct dc *dc, enum dc_irq_source src);
+ bool dc_get_flip_pending_on_otg(struct dc *dc, int otg_inst);
+diff --git a/drivers/gpu/drm/amd/display/dc/irq/irq_service.c b/drivers/gpu/drm/amd/display/dc/irq/irq_service.c
+index b595a11c5..92bb2438a 100644
+--- a/drivers/gpu/drm/amd/display/dc/irq/irq_service.c
++++ b/drivers/gpu/drm/amd/display/dc/irq/irq_service.c
+@@ -92,6 +92,28 @@ static const struct irq_source_info *find_irq_source_info(
+ 	return &irq_service->info[source];
+ }
+ 
++/* Bulk initialization must not call dummy handlers or access empty entries. */
++bool dal_irq_service_is_supported(struct irq_service *irq_service,
++				  enum dc_irq_source source)
++{
++	const struct irq_source_info *info;
++	bool can_set, can_ack;
++
++	if (!irq_service || !irq_service->info || source <= DC_IRQ_SOURCE_INVALID)
++		return false;
++	info = find_irq_source_info(irq_service, source);
++	if (!info)
++		return false;
++
++	can_set = info->funcs && info->funcs->set ?
++		info->funcs->set != dal_irq_service_dummy_set :
++		info->enable_reg && info->enable_mask;
++	can_ack = info->funcs && info->funcs->ack ?
++		info->funcs->ack != dal_irq_service_dummy_ack :
++		info->ack_reg && info->ack_mask;
++	return can_set && can_ack;
++}
++
+ void dal_irq_service_set_generic(
+ 	struct irq_service *irq_service,
+ 	const struct irq_source_info *info,
+diff --git a/drivers/gpu/drm/amd/display/include/irq_service_interface.h b/drivers/gpu/drm/amd/display/include/irq_service_interface.h
+index d6ebed524..607684bb3 100644
+--- a/drivers/gpu/drm/amd/display/include/irq_service_interface.h
++++ b/drivers/gpu/drm/amd/display/include/irq_service_interface.h
+@@ -34,6 +34,10 @@ struct irq_service;
+ 
+ void dal_irq_service_destroy(struct irq_service **irq_service);
+ 
++bool dal_irq_service_is_supported(
++	struct irq_service *irq_service,
++	enum dc_irq_source source);
++
+ bool dal_irq_service_set(
+ 	struct irq_service *irq_service,
+ 	enum dc_irq_source source,
+-- 
+2.56.0
+
