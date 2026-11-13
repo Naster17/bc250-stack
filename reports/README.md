@@ -57,6 +57,27 @@ checks. 15/15 cases passed (FP32/BF16/FP16 × eager/sdpa/tiled). Findings: FP32
 fastest on tiny models, tiled≈sdpa, hybrid gated-delta/conv the dominant
 bottleneck. See [`../docs/PERFORMANCE.md`](../docs/PERFORMANCE.md).
 
+## B07.13 — explicit FP32/FP16 CK activation (optional extension)
+
+Beyond the ten packages, the one genuinely pending optional item — versioned
+explicit installation of the qualified B07.12 coherent FP32/FP16 CK + repaired
+MIOpen artifact — completed 2026-11-12 on board 1. The optional `bc250-ck` command
+now selects the B07.12 format2 worker (a fresh process with the private repaired
+MIOpen ahead of the SDK; 27 pinned mapped libraries, API5/66 exports) instead of
+the B07.7 FP32-only registration. The B07.7 FP32 package/tools/version record are
+retained as the live-rollback target; registration and the wrapper symlink move
+together under the exclusive update lock. **92 checks / 10 acknowledged guards**
+passed: 18 CPU registration/refusal/live-rollback checks, 72 gated daily+RCCL
+checks (six probe batteries, same-process solver137 FP32, conv output and
+all-first-gradient fixtures, native backward), and 2 ordinary-user
+interactive-elevation checks. 133 protected hashes unchanged; kernel log clean.
+Ordinary `bc250-torch`/`bc250-train` defaults, the native runtime, kernel/boot and
+board 2 are unchanged. The plugin supplies explicit FP32/FP16 packed2D forward only
+(backward via retained native solvers); no global solver choice or whole-model
+speedup is claimed. Full identities, evidence and recovery commands are in the
+`bc250-therock` fork (`docs/development/bc250_ck_plugin_b0713_results/` and
+`bc250_ck_plugin_b0713_usage.md`).
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
