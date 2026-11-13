@@ -144,6 +144,50 @@ Full detail and evidence hashes are in the `bc250-therock` fork
 fused native solve/scan kernels, trainable-weight native conv, low-precision cast
 overhead, larger-geometry admission.
 
+## D67 — distributed value benchmark (optional extension)
+
+Completed 2026-11-13 on both boards. Consolidates the distributed performance
+evidence (D05/D32/D35/D43/L01) into one decision-ready picture and adds an owned
+two-board LoRA scaling measurement. **Headline: two boards buy capacity, not
+speed.**
+
+- **Full-parameter training that fits one board:** two boards are 6.8–68×
+  slower per update (12.61M/45.9M/352.96M FP32 fixtures, matched global batch,
+  1 GbE). FSDP's value there is memory headroom (−45.6% live GPU at 352.96M),
+  not throughput.
+- **Full-parameter training that does not fit one board:** two-board FSDP is
+  the demonstrated path — eight 1.024B FP32 updates at 53.36 s median (D43),
+  where the single-board all-resident state floor (16.39 GB) exceeds either
+  host's RAM.
+- **LoRA fine-tuning of a 2B base:** the one workload class where two boards
+  are faster per update. L01 measured +23% on real long mixed-length data
+  (global batch 16); D67 adds owned synthetic exact-length measurements through
+  the same qualified integration (benchmark mode, no user data): Qwen3.5-2B
+  rank-128/alpha-256 all-linear, FP16, matched global batch 4 —
+
+  | Operating point | Single | Two-host DDP | Ratio |
+  | --- | ---: | ---: | ---: |
+  | 1024 tokens, steady state (5 measured updates) | 36.262 s (113 tok/s) | 18.679 s (219 tok/s) | **1.941×** |
+  | 4096 tokens, cold first update | 325.822 s | 167.567 s | **1.944×** |
+
+  DDP overlaps the 538 MB gradient all-reduce with the backward pass, so the
+  1 GbE link is almost fully hidden. Whole-job startup is paid on both boards:
+  L01's six-update job was slower overall on two (248.0 s vs 239.4 s) despite
+  the steady-state win — amortize over long jobs.
+- **8192-token steady state was not measured:** the application environment's
+  reference gated-delta/conv path (the D66 root cause, unfixed in that newer
+  Transformers environment) plus eager O(L²) attention makes a single update
+  exceed the qualified 460 s guardian child budget; documented as infeasible
+  within the safety envelope, with the stopped attempts retained as evidence.
+
+All runs used the L01-pattern guardians (shared runtime locks, 600 s recovery
+guards with nonce-matched acknowledgments, bounded child resources, kernel-log
+and registry identity, foreign-container refusal); both boards idle before and
+after; application entry points, completed outputs and checkpoints untouched;
+no runtime/default/package/source change. 24 new local tests (suite 249). Full
+detail, method, stopped-attempt records and evidence hashes are in the
+`bc250-therock` fork (`docs/development/bc250_distributed_benchmark_d67_results/`).
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
