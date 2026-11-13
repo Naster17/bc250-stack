@@ -1,0 +1,49 @@
+# Patch-apply reconstruction proof for the published BC-250 component forks.
+#
+# For each component, fetch the recorded upstream base, apply the umbrella patch
+# series with `git am`, and verify the resulting tree exactly matches the published
+# fork's tree (ci/components.json expected_tree). Git-only — no ROCm toolchain or
+# build is required, so this runs on ordinary GitHub-hosted runners. A full
+# ROCm/Torch build is intentionally out of scope (reproduced from source via the
+# offline recipes on the build host, per docs/BUILDING.md).
+#
+# The matrix below matches ci/components.json. rocm-libraries / rocm-systems /
+# pytorch are not yet included: their published patch series need base/commit
+# reconciliation first (see docs/REPOS.md and the fork-CI report).
+name: patch-apply
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # weekly, to surface upstream base drift
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        component: [triton, migraphx, onnxruntime, torchaudio, torchcodec]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify patch series reconstructs the published fork
+        run: python3 tools/verify_patch_series.py --component "${{ matrix.component }}"
+
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Python syntax check of tools
+        run: python3 -m py_compile tools/*.py tools/tests/*.py

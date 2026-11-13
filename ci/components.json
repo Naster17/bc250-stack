@@ -1,0 +1,55 @@
+{
+  "_comment": "Patch-apply reconstruction proof. base=upstream commit; applying patches/*.patch with git am must reproduce expected_tree (the published fork bc250/gfx1013 tree). Verified locally 2026-11-13.",
+  "components": {
+    "triton": {
+      "upstream": "https://github.com/triton-lang/triton.git",
+      "base": "66b3f9ff575eb8db6adec658bbf0badd9a8d2e25",
+      "patches": "patches/bc250-triton",
+      "fork": "https://github.com/Naster17/bc250-triton.git",
+      "fork_branch": "bc250/gfx1013",
+      "published_head": "ee65ff3b85f99d52e678b252a99c8425fa46e329",
+      "expected_tree": "5f62ee9e8cf42e582bd1d1de5462f6e1f3f5110d",
+      "patch_count": 4
+    },
+    "migraphx": {
+      "upstream": "https://github.com/ROCm/AMDMIGraphX.git",
+      "base": "95672916ed289d4be9d230a9be732e1bbad97e8c",
+      "patches": "patches/bc250-migraphx",
+      "fork": "https://github.com/Naster17/bc250-migraphx.git",
+      "fork_branch": "bc250/gfx1013",
+      "published_head": "134ee25f67007523bd03374c4b723fe075a3b77f",
+      "expected_tree": "08a36a32b85c448ca40b8988d3d111f6e5be20c1",
+      "patch_count": 5
+    },
+    "onnxruntime": {
+      "upstream": "https://github.com/microsoft/onnxruntime.git",
+      "base": "402979ac1bef89dcd55add41eaa7277c407599eb",
+      "patches": "patches/bc250-onnxruntime",
+      "fork": "https://github.com/Naster17/bc250-onnxruntime.git",
+      "fork_branch": "bc250/gfx1013",
+      "published_head": "b81a7866e5a6eff964b9e411535b4c9198651a9f",
+      "expected_tree": "699764ab9e1f858fba9d8e4a5d7167504a96a960",
+      "patch_count": 1
+    },
+    "torchaudio": {
+      "upstream": "https://github.com/pytorch/audio.git",
+      "base": "34c52a67e8941bbd8e6adaca0eb0b9eabec11d78",
+      "patches": "patches/amd-mainline/torchaudio",
+      "fork": "https://github.com/Naster17/bc250-torchaudio.git",
+      "fork_branch": "bc250/gfx1013",
+      "published_head": "1ae7f5d8023e82be51b500399a37fceb45481a2b",
+      "expected_tree": "a6410cf33f456630665424014a1ba835cb01f779",
+      "patch_count": 4
+    },
+    "torchcodec": {
+      "upstream": "https://github.com/meta-pytorch/torchcodec.git",
+      "base": "d9dc54238e173000bc3969eb3959777026ff9ae8",
+      "patches": "patches/amd-mainline/torchcodec",
+      "fork": "https://github.com/Naster17/bc250-torchcodec.git",
+      "fork_branch": "bc250/gfx1013",
+      "published_head": "3eecace02076800cf6aa9be6364ed2f1f611548d",
+      "expected_tree": "3b48141653c369086aa83256424a6ea656e7a85d",
+      "patch_count": 1
+    }
+  }
+}
