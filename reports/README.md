@@ -245,6 +245,52 @@ Remaining optional headroom: finer per-geometry selectivity (~5% at four
 chunks), trainable-weight native conv, low-precision cast overhead,
 larger-geometry admission.
 
+## D69 — route portability to Transformers 5.22.1 (optional extension)
+
+Completed 2026-11-13 on the .104 release, in the application's newer
+Transformers 5.22.1 environment (the lora-smoke integration, unchanged).
+Reconstruction showed 5.22.1 already replaced the 5.2.0 63-iteration inverse
+loop with batched `solve_triangular` and calls the **module-level global**
+`torch_chunk_gated_delta_rule`, so the D66 instance patch does not apply; the
+remaining launch-bound piece is the Python chunk scan — the same structure as
+the installed native op's default path.
+
+New owned tooling in the `bc250-therock` fork (no Torch source change): a
+module-scope gated route (version/device/model-type gates, kill switch, a
+kwargs classifier that ignores-and-records the control flags the torch
+reference itself ignores and falls back — counted — on packed/positioned/
+non-causal/unknown inputs, exact-identity uninstall), an explicit training
+wrapper around the unchanged app entry point, an app-environment qualification
+fixture, and D67-pattern guardians with resume.
+
+**Qualified:** op parity vs the 5.22.1 reference FP32 ≤ 7.3e-7 rel-L2,
+BF16/FP16 **bitwise 0**; CPU/FP64 recurrence anchor at 0.2–5.3% of the A06
+tolerances; tiny owned Qwen3.5 model parity within the D66 bounds (FP32 worst
+gradient 1.25e-3 ≤ 2e-3; native 7× closer to FP64 than the reference); 7
+refusal checks. LoRA re-check on D67's hash-verified owned synthetic data
+(global batch 4, rank-128 FP16 eager + checkpointing): route records show
+864/144 native calls with **zero fallbacks** and exact uninstall.
+
+| Case | Reference | Route → installed | Route → D68 fused |
+| --- | ---: | ---: | ---: |
+| 1024 steady s/update | 36.166 | 36.189 (1.000×) | 35.670 (**1.014×**) |
+| 4096 cold first update s | 324.172 | — | 317.671 (**1.020×**) |
+| 8192 first update | infeasible (D67) | — | **still > 460 s envelope** (safely stopped) |
+
+**Honest finding:** the port is clean, but the step-level gain is only ~1–2%.
+The chunk op is a small share of the whole LoRA step — eager full attention,
+the conv reference, whole-model launch/dispatch overhead (24 layers × 4
+microbatches × gradient checkpointing) and the 134M-parameter optimizer
+dominate. This refines D67's attribution: "launch-bound gated-delta" holds at
+the op level (D68 measured 1.8× there), but the app step is launch-bound
+across the whole model. The next lever for long-sequence LoRA is broader
+launch reduction (qualified fused/tiled attention, conv, or graph capture) —
+separate bounded scopes. No application source/entry point/output/checkpoint
+change, no user data, no default/package/release change; boards clean
+(guardian kernel-log/registry gates, nonce-acked boot guards, boot unchanged).
+16 new local tests (suite 285). Full detail and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_route_port_d69_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
