@@ -291,6 +291,71 @@ change, no user data, no default/package/release change; boards clean
 16 new local tests (suite 285). Full detail and evidence hashes:
 `bc250-therock` fork, `docs/development/bc250_route_port_d69_results/`.
 
+## D70 — LoRA step decomposition + launch-reduction feasibility (optional extension)
+
+Completed 2026-11-13 on the .104 release (app environment, D67-pattern
+guardians). First bounded scope of the broader launch-reduction direction:
+**measure where the ~36 s LoRA update actually goes and prove whether HIP
+graph capture / torch.profiler work on this stack, before building any
+attention/conv route.** Measurement only — owned span-instrumentation wrapper
+around the unchanged app entry point (transparent CUDA-event spans, class-level
+phase patches, an instance-level patch on the prepared optimizer, layer/MLP
+hooks, conv/chunk/eager function wraps; finalized post-run, no in-step
+synchronization), a 7-section feasibility probe, and D67-pattern guardians
+with resume. No Torch source change (pytorch series stays 23 patches).
+
+**Reproduction:** 1024 steady 36.118 s/update (0.999× the D69 reference
+36.166 s), final loss identical (2.4717), peak 6.17 GiB; 4096 cold first
+update 329.770 s (1.017× D69 324.172 s), peak 6.99 GiB. GPU-timeline coverage
+~1.000, CPU wall closure 0.000 s, zero unpaired hooks, exact uninstall.
+
+**Finding 1 — the 1024 step is GEMM-compute-bound, not launch-bound.** The
+kernel census (torch.profiler, kernel events separated from their parent
+aten:: ops to avoid double-counting) shows **157,675 kernel launches and
+36.32 s of device-busy time per update — the GPU is ~100% busy** — and ~89%
+of that time is Tensile FP16 GEMM kernels executing the LoRA-adapted
+projections at very low efficiency (dominant skinny-tile family
+`MT64x1x64…GSU3`: 1176 calls × 14.5 ms = 17.1 s per update). GPU timeline:
+linear-attention mixer 54.7%, MLP 32.5%, full-attention mixer 5.8% (the eager
+attention *core* is 0.3%), optimizer **0.1%** (30 ms — the D69
+"optimizer dominates" hypothesis is refuted), conv+chunk ~3%. Host gaps
+overlap GPU execution; launch overhead is already hidden.
+
+**Finding 2 — the ~9× step growth at 4096 is not attention either.** The
+linear-attention mixer grows **10.9×** for 4× the tokens (215.1 s, 65.2% of
+the step — superlinear LoRA GEMM cost), MLP 7.2×, the conv reference **20×**
+(0.44 → 8.95 s); the eager attention core grows 14.8× ≈ L² as theory predicts
+but is only 0.5% of the 4096 step. 8192 infeasibility is therefore GEMM/conv
+scaling — attention routing alone would not restore it. (Cold-vs-steady
+growth factors are indicative attribution, not a controlled scaling study.)
+
+**Finding 3 — HIP graph capture is feasible and bitwise-exact on this
+stack.** All seven probe sections passed: torch.profiler CUDA activity;
+graph capture of MLP fwd+bwd (12.01 → 5.63 ms, 2.13×), tiny Qwen3.5 eager
+ATen (2.09×), the D68 fused **Triton** path (2.47×, 75 native calls, zero
+fallbacks inside the captured region), **with gradient checkpointing**
+(3.44×), and `make_graphed_callables` — all with bitwise-identical loss and
+gradients on replay. On the real model, though, capture can only remove the
+~11% non-GEMM share plus already-overlapped host overhead; its value grows
+once GEMM time shrinks.
+
+**Re-ranked backlog (evidence-backed):** (1) GEMM efficiency for the LoRA
+shapes — qualify the explicit CK FP16 path (`bc250-ck`, B07.13) on these
+shapes / Tensile skinny-N solution tuning / LoRA A/B GEMM batching; a 2× GEMM
+improvement would cut the 1024 step ~45%; (2) trainable-weight native
+depthwise causal conv (20× growth); (3) graph-capture integration; (4) D68
+headroom (~1–3%); fused/tiled attention routing is **demoted** (0.3–0.5% of
+the step at these lengths). Defects found and fixed while qualifying are
+retained in the report (tiny-model SDPA default, stale-graph capture block,
+checkpoint hook semantics diagnosed on-stack, accelerate's inner-optimizer
+re-patch vs class-level patching, async budget/census double-counting,
+single-update progress print). 20 new local tests (suite 305). No application
+source/entry point/output/checkpoint change, no user data (D67 owned
+synthetic data reused by hash), no default/package/release change; boards
+clean every phase (kernel-log/registry gates, nonce-acked boot guards, boot
+unchanged, 0 containers). Full detail and evidence hashes: `bc250-therock`
+fork, `docs/development/bc250_launch_reduction_d70_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
