@@ -1,8 +1,8 @@
 From 55e9abea68b05cc524274d5806ebd8812005b383 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 13:08:27 +0200
-Subject: [PATCH] feat(rocblas): recognize native gfx1013 and scalar Tensile
- capabilities
+Subject: [PATCH 01/38] feat(rocblas): recognize native gfx1013 and scalar
+ Tensile capabilities
 
 ---
  projects/rocblas/library/src/handle.cpp       |  4 ++

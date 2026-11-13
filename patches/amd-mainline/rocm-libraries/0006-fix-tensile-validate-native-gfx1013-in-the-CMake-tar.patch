@@ -1,8 +1,8 @@
 From f4302e457a92df7860ad06c1c033496848a49956 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 22:43:07 +0200
-Subject: [PATCH] fix(tensile): validate native gfx1013 in the CMake target
- list
+Subject: [PATCH 06/38] fix(tensile): validate native gfx1013 in the CMake
+ target list
 
 ---
  .../Tensile/Source/cmake/TensileSupportedArchitectures.cmake     | 1 +

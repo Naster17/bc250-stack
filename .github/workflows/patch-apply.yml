@@ -1,15 +1,17 @@
 # Patch-apply reconstruction proof for the published BC-250 component forks.
 #
 # For each component, fetch the recorded upstream base, apply the umbrella patch
-# series with `git am`, and verify the resulting tree exactly matches the published
-# fork's tree (ci/components.json expected_tree). Git-only — no ROCm toolchain or
-# build is required, so this runs on ordinary GitHub-hosted runners. A full
-# ROCm/Torch build is intentionally out of scope (reproduced from source via the
-# offline recipes on the build host, per docs/BUILDING.md).
+# series, and verify the resulting tree exactly matches the published fork's tree
+# (ci/components.json expected_tree). Git-only — no ROCm toolchain or build is
+# required, so this runs on ordinary GitHub-hosted runners. A full ROCm/Torch
+# build is intentionally out of scope (reproduced from source via the offline
+# recipes on the build host, per docs/BUILDING.md).
 #
-# The matrix below matches ci/components.json. rocm-libraries / rocm-systems /
-# pytorch are not yet included: their published patch series need base/commit
-# reconciliation first (see docs/REPOS.md and the fork-CI report).
+# The matrix below matches ci/components.json (all 8 patched components). Small
+# bases use checkout + git am; the LFS-heavy rocm-libraries base (and rocm-systems
+# / pytorch) use the index mode (blob:none fetch + git apply --cached +
+# write-tree --missing-ok, no checkout) — see tools/verify_patch_series.py and
+# reports/FORK_CI.md.
 name: patch-apply
 
 on:
@@ -29,7 +31,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        component: [triton, migraphx, onnxruntime, torchaudio, torchcodec]
+        component:
+          - triton
+          - migraphx
+          - onnxruntime
+          - torchaudio
+          - torchcodec
+          - rocm-libraries
+          - rocm-systems
+          - pytorch
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -44,18 +44,20 @@ running kernel is reproducible. See [`KERNEL.md`](KERNEL.md).
 
 ## Layer 2 — ROCm systems (`bc250-rocm-systems`)
 
-HIP, ROCr, RCCL, and the profiler. The 6-patch series fixes gfx1013-specific
+HIP, ROCr, RCCL, and the profiler. The 8-patch series fixes gfx1013-specific
 behavior, including the terminating `-1` visibility selector in profiler agent
 filtering and RCCL DDA IPC diagnostics. These make device enumeration, profiling,
 and collective communication correct on the board.
 
 ## Layer 3 — ROCm libraries (`bc250-rocm-libraries`)
 
-rocBLAS, hipBLASLt, MIOpen, hipSPARSELt, and friends. The 33-patch series is the
+rocBLAS, hipBLASLt, MIOpen, hipSPARSELt, and friends. The 38-patch series is the
 largest and includes the headline repairs:
 
 - **MIOpen gfx1013 FP16 direct-forward with FP32 accumulation** (the PLAN-02
   repair), plus a versioned binary cache keyed after the repair.
+- The explicit opt-in **FP32/FP16 CK DL forward plugin** facade and its
+  descriptor/runtime contracts (B07.12/B07.13; never the global default).
 - hipBLASLt native gfx1013 backend selection.
 - DPP-only subwave reducer guards for strict builds.
 
@@ -75,7 +77,8 @@ run correctly on RDNA1.
 
 ## Layer 5 — PyTorch (`bc250-torch`)
 
-The framework, based on **`ROCm/pytorch`**. The 10-patch series adds the native
+The framework, based on **`ROCm/pytorch`**. The complete 22-patch series
+(`patches/bc250-pytorch-complete`, single base `c779020750`) adds the native
 gfx1013 training surface:
 
 - HIP channels-last average-padding fix;
@@ -84,7 +87,10 @@ gfx1013 training surface:
 - native **sparse autograd**;
 - native **gated-delta** preparation, precision handling, and head-256 attention;
 - native **Kineto SDK** profiling and ROCm profiler CPU-first initialization;
-- ROCm sparse triangular pivot NaN fix.
+- ROCm sparse triangular pivot NaN fix;
+- distributed/quantization hardening: BF16 NCCL PreMulSum storage, FP8 reduction
+  admission checks, weight-only INT8 layout normalization, TCPStore owner
+  lifetime through peer agent exit.
 
 Attention runs through math/eager SDPA by default, with an opt-in tiled/hybrid
 path; quantization is a frozen **W8** route (no NF4/packed-INT4/full-QLoRA). The

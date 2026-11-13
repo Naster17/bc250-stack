@@ -1,0 +1,31 @@
+From e1d8d1ff9208a163e6d821731e70ff12913cb832 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Sun, 8 Nov 2026 13:54:31 +0100
+Subject: [PATCH 38/38] MIOpen: version gfx1013 FP16 direct-forward binary
+ cache after accumulation repair
+
+---
+ projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp b/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
+index 683cae216e0..a0898b4426b 100644
+--- a/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
++++ b/projects/miopen/src/solver/conv/conv_hip_dir2Dfwd.cpp
+@@ -460,6 +460,13 @@ ConvSolution ConvHipDirectFwd::BaseGetSolution(const ExecutionContext& ctx,
+     kernel_params.g_wk.push_back(gbl_wk1);
+     kernel_params.g_wk.push_back(gbl_wk2);
+ 
++    // The gfx1013 FP16 forward kernel now accumulates in FP32. Both user and
++    // system binary caches key on the filename and compile options, not source
++    // contents. Keep legacy binaries from bypassing the corrected arithmetic.
++    if(ctx.GetStream().GetDeviceName() == "gfx1013" && problem.IsDirectionForward() &&
++       problem.IsFp16())
++        kernel_params.comp_options += " -DBC250_DIRECT_FWD_FP32_ACCUM_CACHE=1";
++
+     kernel_params.kernel_file = "MIOpenConvDirUniHip.cpp";
+     kernel_params.kernel_name = "MIOpenConvUni";
+ 
+-- 
+2.56.0
+

@@ -1,8 +1,8 @@
 From f12e43e3f9be393dca54de17d7b34a29daffc57b Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 14 Oct 2026 10:06:26 +0200
-Subject: [PATCH] feat(gfx1013): integrate scalar GEMM consumers and generic
- neural operations
+Subject: [PATCH 16/38] feat(gfx1013): integrate scalar GEMM consumers and
+ generic neural operations
 
 ---
  .../conv/IntegrationGpuConvFwdBiasActiv.cpp   |  48 +-

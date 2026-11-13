@@ -1,8 +1,8 @@
 From b6b37dcdf0d4e0e75c01956544809c6b3def2589 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 13:10:21 +0200
-Subject: [PATCH] feat(miopen): enable gfx1013 HIP-direct convolution solver
- tests
+Subject: [PATCH 02/38] feat(miopen): enable gfx1013 HIP-direct convolution
+ solver tests
 
 ---
  projects/miopen/src/solver/conv/conv_hip_dir2D11x11.cpp      | 2 +-

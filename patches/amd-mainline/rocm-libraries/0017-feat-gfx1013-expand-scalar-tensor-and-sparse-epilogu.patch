@@ -1,8 +1,8 @@
 From 01566e3144d854944c7bb1f6b045e965ddb5aae9 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 14 Oct 2026 11:00:33 +0200
-Subject: [PATCH] feat(gfx1013): expand scalar tensor and sparse epilogues and
- tune GEMM
+Subject: [PATCH 17/38] feat(gfx1013): expand scalar tensor and sparse
+ epilogues and tune GEMM
 
 ---
  .../library/src/amd_detail/gfx1013_scalar.cpp | 240 +++++++++++-------

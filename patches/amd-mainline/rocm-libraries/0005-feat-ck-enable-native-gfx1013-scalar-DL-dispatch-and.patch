@@ -1,8 +1,8 @@
 From 3f6e5c01b3cd0f592581862a42d23af80b5ce3ae Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 16:50:30 +0200
-Subject: [PATCH] feat(ck): enable native gfx1013 scalar DL dispatch and CKTile
- tests
+Subject: [PATCH 05/38] feat(ck): enable native gfx1013 scalar DL dispatch and
+ CKTile tests
 
 ---
  .../composablekernel/include/ck/host_utility/device_prop.hpp    | 2 +-

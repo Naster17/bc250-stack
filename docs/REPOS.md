@@ -14,9 +14,9 @@ Naming convention: `bc250-<component>`. Branch convention: `bc250/gfx1013`.
 | --- | --- | --- | --- | --- |
 | `bc250-linux` | Alpine Linux 7.1 (patched-snapshot import) | kernel 7.1.5-bc250rocm-r2 | 6 (r3) | Kernel: amdgpu/amdkfd BC-250 compute quirks |
 | `bc250-therock` | `ROCm/TheRock` | our build branch | — | ROCm superbuild / build system |
-| `bc250-rocm-libraries` | `ROCm/rocm-libraries` | `therock-7.13-27423` (`m/amd-mainline`) | 33 | rocBLAS/hipBLASLt/MIOpen/etc.; MIOpen gfx1013 FP16 repair |
-| `bc250-rocm-systems` | `ROCm/rocm-systems` | `hip-version_10.2.62820` | 6 | HIP/ROCr/RCCL/profiler; gfx1013 visibility fixes |
-| `bc250-torch` | `ROCm/pytorch` | recorded merge-base | 10 | PyTorch: native gfx1013 training/attention/sparse/quant ops |
+| `bc250-rocm-libraries` | `ROCm/rocm-libraries` | `3d8f334b9a7` (develop) | 38 | rocBLAS/hipBLASLt/MIOpen/etc.; MIOpen gfx1013 FP16 repair + CK plugin |
+| `bc250-rocm-systems` | `ROCm/rocm-systems` | `hip-version_10.2.62820` (`d5c528019d`) | 8 | HIP/ROCr/RCCL/profiler; gfx1013 visibility fixes |
+| `bc250-torch` | `ROCm/pytorch` | `c779020750` (release/2.13) | 22 | PyTorch: native gfx1013 training/attention/sparse/quant ops |
 | `bc250-triton` | `triton-lang/triton` | recorded merge-base | 4 | Triton: gfx1013 low-precision dot / RDNA1 descriptors |
 | `bc250-torchaudio` | `pytorch/audio` | `v2.11.0` | 4 | torchaudio gfx1013 RNNT/IIR fixes |
 | `bc250-torchcodec` | `meta-pytorch/torchcodec` | `v0.17.0` | 1 | torchcodec gfx1013 seek fix |
@@ -25,7 +25,10 @@ Naming convention: `bc250-<component>`. Branch convention: `bc250/gfx1013`.
 
 > **Torch base note:** the patched Torch branch is based on **`ROCm/pytorch`**
 > (the ROCm fork), *not* `pytorch/pytorch` mainline. Fork `ROCm/pytorch` so the
-> base commits exist and the series applies cleanly.
+> base commits exist and the series applies cleanly. The reconstructible series
+> is [`patches/bc250-pytorch-complete`](../patches/bc250-pytorch-complete/README.md)
+> (22 patches, single base `c779020750`); `patches/bc250-pytorch` is the retained
+> historical incremental export and must not be combined with it.
 
 ## Recipe-fetched pins (no fork — unmodified upstream)
 

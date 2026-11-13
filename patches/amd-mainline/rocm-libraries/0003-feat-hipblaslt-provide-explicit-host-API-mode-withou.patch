@@ -1,8 +1,8 @@
 From 9ca9c61165f642a9f20c9262b8406060659fa0fb Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 16:23:22 +0200
-Subject: [PATCH] feat(hipblaslt): provide explicit host API mode without GEMM
- kernels
+Subject: [PATCH 03/38] feat(hipblaslt): provide explicit host API mode without
+ GEMM kernels
 
 ---
  projects/hipblaslt/CMakeLists.txt             | 21 +++++--

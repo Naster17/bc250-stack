@@ -1,8 +1,8 @@
 From a66565652537244e0b5a0db5f2ff7005ecf4d856 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Tue, 13 Oct 2026 11:35:19 +0200
-Subject: [PATCH] feat(gfx1013): add scalar library backends and generic CK
- Tile fixes
+Subject: [PATCH 14/38] feat(gfx1013): add scalar library backends and generic
+ CK Tile fixes
 
 ---
  projects/composablekernel/CMakeLists.txt      |   3 +

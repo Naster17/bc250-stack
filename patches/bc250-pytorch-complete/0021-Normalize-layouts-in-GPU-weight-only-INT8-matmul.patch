@@ -1,0 +1,98 @@
+From a5249802372882dedccb91d3fd4d73be9fcdf2bd Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Sat, 24 Oct 2026 13:45:37 +0200
+Subject: [PATCH 21/22] Normalize layouts in GPU weight-only INT8 matmul
+
+The generic GPU kernel indexes activations and row scales as contiguous arrays.
+Converting them to FP32 preserves transpose strides and leaves FP32 views
+unchanged, producing wrong outputs for valid strided operands. Make both
+converted inputs contiguous before dispatch, matching the existing weight path.
+Keep arithmetic, output casting and unsupported native backward unchanged.
+
+Add device-generic exact CPU-reference tests for transposed, sliced and
+broadcast activations with contiguous or strided scales and byte weights.
+The linter also removes an existing unused test import.
+
+Test Plan:
+```sh
+PYTORCH_LINT_SKIP_CODEGEN=1 uv run --offline --no-project --python 3.12 --with spin==0.18 spin lint -- -a --take=CLANGFORMAT,NEWLINE,INCLUDE,RUFF,FLAKE8,PYFMT,TESTOWNERS,TEST_HAS_MAIN aten/src/ATen/native/cuda/int8mm.cu test/test_linalg.py
+```
+Native gfx1013 reproduction is preserved in B05.1. Isolated pip build and
+hardware candidate qualification follow this source revision; full upstream CI
+and other GPU devices are not claimed.
+
+Authored with assistance from Codex.
+---
+ aten/src/ATen/native/cuda/int8mm.cu |  4 ++--
+ test/test_linalg.py                 | 32 +++++++++++++++++++++++++++--
+ 2 files changed, 32 insertions(+), 4 deletions(-)
+
+diff --git a/aten/src/ATen/native/cuda/int8mm.cu b/aten/src/ATen/native/cuda/int8mm.cu
+index 922c9e1..9a84145 100644
+--- a/aten/src/ATen/native/cuda/int8mm.cu
++++ b/aten/src/ATen/native/cuda/int8mm.cu
+@@ -78,9 +78,9 @@ at::Tensor _weight_int8pack_mm_cuda(
+   auto N = w_int8.size(0); // output dim
+ 
+   // Ensure inputs are in the correct types for the kernel
+-  auto x_f32 = x.to(at::kFloat);
++  auto x_f32 = x.to(at::kFloat).contiguous();
+   auto w_int8_contiguous = w_int8.contiguous();
+-  auto scale_f32 = scale.to(at::kFloat);
++  auto scale_f32 = scale.to(at::kFloat).contiguous();
+ 
+   // --- Allocate output ---
+   auto out = at::empty({B, N}, x_f32.options());
+diff --git a/test/test_linalg.py b/test/test_linalg.py
+index 515f046..1172b31 100644
+--- a/test/test_linalg.py
++++ b/test/test_linalg.py
+@@ -27,8 +27,7 @@ from torch.testing._internal.common_utils import \
+      TEST_WITH_ROCM, IS_FBCODE, IS_REMOTE_GPU, iter_indices,
+      make_fullrank_matrices_with_distinct_singular_values,
+      freeze_rng_state, IS_ARM64, IS_SANDCASTLE, TEST_OPT_EINSUM, isRocmArchAnyOf, parametrize, skipIfTorchDynamo,
+-     skipIfRocmArch, skipIfRocmVersionAtLeast, setBlasBackendsToDefaultFinally, setLinalgBackendsToDefaultFinally, serialTest, skipIfRocm,
+-     with_ieee_matmul_precision, runOnRocmArch, MI200_ARCH, MI300_ARCH, MI350_ARCH, NAVI_ARCH, TEST_CUDA)
++     skipIfRocmArch, skipIfRocmVersionAtLeast, setBlasBackendsToDefaultFinally, setLinalgBackendsToDefaultFinally, serialTest, with_ieee_matmul_precision, runOnRocmArch, MI200_ARCH, MI300_ARCH, MI350_ARCH, NAVI_ARCH, TEST_CUDA)
+ from torch.testing._internal.common_device_type import \
+     (instantiate_device_type_tests, dtypes, has_cusolver, onlyCPU, skipCPUIfNoLapack, precisionOverride,
+      skipCUDAIf,
+@@ -6933,6 +6932,35 @@ scipy_lobpcg  | {eq_err_scipy:10.2e}  | {eq_err_general_scipy:10.2e}  | {iters2:
+         mean_err = ((res - ref).abs() / ref).mean()
+         self.assertTrue(mean_err < 0.05)
+ 
++    @onlyCUDA
++    @dtypes(torch.float16, torch.bfloat16, torch.float32)
++    @parametrize("layout", ["transpose", "slice", "expand"])
++    @parametrize("strided_scale", [False, True])
++    def test_weight_int8pack_mm_layouts(self, device, dtype, layout, strided_scale):
++        if layout == "transpose":
++            x = torch.arange(21, device=device, dtype=dtype).reshape(7, 3).t() / 8
++        elif layout == "slice":
++            x = torch.arange(42, device=device, dtype=dtype).reshape(3, 14)[:, ::2]
++        else:
++            x = torch.arange(7, device=device, dtype=dtype).expand(3, 7)
++        self.assertFalse(x.is_contiguous())
++        weight = (torch.arange(35, device=device).reshape(7, 5) % 7 - 3).to(torch.int8).t()
++        scale = torch.arange(1, 6, device=device, dtype=torch.float32) / 8
++        if strided_scale:
++            storage = torch.full((10,), 19.0, device=device)
++            storage[::2] = scale
++            scale = storage[::2]
++        x_before, weight_before, scale_before = x.clone(), weight.clone(), scale.clone()
++        expected = (
++            x.cpu().double() @ weight.cpu().double().t()
++        ) * scale.cpu().double()
++        self.assertEqual(
++            torch._weight_int8pack_mm(x, weight, scale), expected.to(dtype), atol=0, rtol=0
++        )
++        self.assertEqual(x, x_before)
++        self.assertEqual(weight, weight_before)
++        self.assertEqual(scale, scale_before)
++
+     @slowTest
+     @onlyCPU
+     @largeTensorTest('12GB', device='cpu')
+-- 
+2.56.0
+

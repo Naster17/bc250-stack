@@ -1,8 +1,10 @@
-# BC-250 PyTorch patches
+# BC-250 PyTorch patches (historical incremental export)
 
-D46 (2026-11-10) adds a separately verified complete export at
-[`../bc250-pytorch-complete`](../bc250-pytorch-complete/README.md). It closes the
-historical three-file gap for the qualified native source and current source head.
+The complete reconstruction series is published at
+[`../bc250-pytorch-complete`](../bc250-pytorch-complete/README.md) (2026-11-13:
+22 single-base patches on ROCm/pytorch `c779020750`, fork-CI verified; it closes
+the historical three-file gap for the qualified native source and current source
+head, matching the D46 verified complete export of 2026-11-10).
 This old incremental directory remains unchanged/incomplete historical evidence;
 do not combine its patches with the complete series. Full dependency/bundle/build
 reconstruction remains PLAN-07 work. Older gap statements below describe this

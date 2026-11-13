@@ -1,7 +1,8 @@
 From 039b79bcb43c614b86f92b3190a6fed05cf6118c Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 11 Oct 2026 16:34:23 +0200
-Subject: [PATCH] feat(rocrand): recognize gfx1013 in host and device dispatch
+Subject: [PATCH 04/38] feat(rocrand): recognize gfx1013 in host and device
+ dispatch
 
 ---
  projects/rocrand/library/src/rng/config_types.hpp           | 6 ++++++

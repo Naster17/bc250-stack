@@ -1,0 +1,53 @@
+From 14cfef2d8c5e8c2c40e3b24587233227ea8dadc3 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Fri, 23 Oct 2026 12:26:35 +0200
+Subject: [PATCH 20/22] Apply the FP8 admission check to reduce and its
+ out-of-place helper
+
+The guarded single-device B03.7 test exposed that ProcessGroupNCCL::reduce
+bypassed isUnsupportedFloat8, although all_reduce rejected the same input.
+Apply the existing dtype/device policy before enqueueing either reduce entry
+point. This also covers the internal helper used for uneven reduce-scatter.
+
+Test Plan:
+The first isolated native candidate passes 33 checks, then the expected FP8
+reduce refusal fails because reduce returns successfully. This is admission
+coverage, not a multi-GPU wrong-result reproduction. Native rebuild and the
+same refusal/reference regressions are pending in workspace qualification.
+
+```sh
+PYTORCH_LINT_SKIP_CODEGEN=1 uv run --offline --no-project --python 3.12 --with spin==0.18 spin lint -- -a --take=CLANGFORMAT,NEWLINE,INCLUDE torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+```
+
+Targeted source checks pass. Authored with an AI assistant.
+---
+ torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp b/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+index 87e8194..abe1f4f 100644
+--- a/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
++++ b/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
+@@ -4778,6 +4778,9 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::reduce(
+     tensor = at::view_as_real(tensor);
+   }
+   check_gpu_single_tensor(tensor);
++  TORCH_CHECK(
++      !isUnsupportedFloat8(tensor),
++      "Unsupported Float8 type for NCCL reduction");
+   RECORD_PARAM_COMMS_DATA_WITH_ASYNC_OP(
+       std::make_tuple(
+           static_cast<int64_t>(seqCollective_) + 1,
+@@ -4840,6 +4843,9 @@ c10::intrusive_ptr<Work> ProcessGroupNCCL::_reduce_oop(
+         ValueError,
+         "Tensor input and output of _reduce_oop must have the same number of elements ");
+   }
++  TORCH_CHECK(
++      !isUnsupportedFloat8(inputTensor),
++      "Unsupported Float8 type for NCCL reduction");
+   return collective(
+       inputTensor,
+       outputTensor,
+-- 
+2.56.0
+

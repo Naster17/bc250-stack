@@ -1,0 +1,50 @@
+From c653cbc33cd98f0c322fc6991eb80aff76511ac8 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 22 Oct 2026 21:33:46 +0200
+Subject: [PATCH 6/8] Fix RCCL direct NVTX includes when tracing is disabled
+
+The no-tracing build selected nvtx_stub.h through core.h, while direct nvtx.h includes reintroduced the full definitions and failed on nccl_domain. Honor NVTX_NO_IMPL at the public wrapper and supply the no-op NCCL range macro. Initial native gfx1013 build failure is preserved; full incremental rebuild follows.
+---
+ projects/rccl/src/include/nvtx.h      | 6 ++++++
+ projects/rccl/src/include/nvtx_stub.h | 1 +
+ 2 files changed, 7 insertions(+)
+
+diff --git a/projects/rccl/src/include/nvtx.h b/projects/rccl/src/include/nvtx.h
+index 62b083a0bd..5cb1cc3ed7 100644
+--- a/projects/rccl/src/include/nvtx.h
++++ b/projects/rccl/src/include/nvtx.h
+@@ -8,6 +8,10 @@
+ #ifndef NCCL_NVTX_H_
+ #define NCCL_NVTX_H_
+ 
++#ifdef NVTX_NO_IMPL
++#include "nvtx_stub.h"
++#else
++
+ #include "nvtx3/nvtx3.hpp"
+ #include "roctx.h"
+ 
+@@ -251,6 +255,8 @@ private:
+   } while (0)
+ #endif
+ 
++#endif // NVTX_NO_IMPL
++
+ extern void initNvtxRegisteredEnums();
+ 
+ #endif
+diff --git a/projects/rccl/src/include/nvtx_stub.h b/projects/rccl/src/include/nvtx_stub.h
+index d3933719af..38fcd67f58 100644
+--- a/projects/rccl/src/include/nvtx_stub.h
++++ b/projects/rccl/src/include/nvtx_stub.h
+@@ -16,6 +16,7 @@ struct nccl_domain {
+ #define NVTX3_FUNC_RANGE_IN(domain)
+ #define nvtxNameOsThreadA(syscall, thread)
+ #define NVTX3_FUNC_WITH_PARAMS(N, T, P)
++#define NCCL_NVTX3_FUNC_RANGE
+ #define NVTX3_PAYLOAD(...) __VA_ARGS__
+ #define NVTX3_RANGE(T)
+ #define NVTX3_RANGE_ADD_PAYLOAD(N, S, P)
+-- 
+2.56.0
+

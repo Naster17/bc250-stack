@@ -1,0 +1,232 @@
+From 2976e7d30bfdccb2fb79809b8c58a6b5722a0822 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 29 Oct 2026 08:06:23 +0100
+Subject: [PATCH 34/38] Add isolated gfx1013 FP32 DL grouped-forward plugin
+ facade
+
+---
+ .../miopen/src/ck_impl/bc250_dl_private.cpp   | 173 ++++++++++++++++++
+ .../src/ck_impl/ck_grouped_conv_fwd_impl.cpp  |  24 +++
+ 2 files changed, 197 insertions(+)
+ create mode 100644 projects/miopen/src/ck_impl/bc250_dl_private.cpp
+
+diff --git a/projects/miopen/src/ck_impl/bc250_dl_private.cpp b/projects/miopen/src/ck_impl/bc250_dl_private.cpp
+new file mode 100644
+index 00000000000..65c273510a2
+--- /dev/null
++++ b/projects/miopen/src/ck_impl/bc250_dl_private.cpp
+@@ -0,0 +1,173 @@
++// SPDX-License-Identifier: MIT
++// Private API5 prototype. Not part of production plugin admission or installation.
++#include <miopen/solver/ck_impl_interface.hpp>
++#include <miopen/solver/ck_impl_error.hpp>
++#include <miopen/conv/problem_description.hpp>
++
++// Reuse the matching upstream implementation behind a restricted public facade.
++#define ck_impl_fwd_fill_valid_kernels bc250_upstream_fwd_fill_valid_kernels
++#define ck_impl_fwd_is_applicable bc250_upstream_fwd_is_applicable
++#define ck_impl_fwd_is_args_supported bc250_upstream_fwd_is_args_supported
++#define ck_impl_fwd_get_workspace_size bc250_upstream_fwd_get_workspace_size
++#define ck_impl_fwd_get_solution bc250_upstream_fwd_get_solution
++#include "ck_grouped_conv_fwd_impl.cpp"
++#undef ck_impl_fwd_fill_valid_kernels
++#undef ck_impl_fwd_is_applicable
++#undef ck_impl_fwd_is_args_supported
++#undef ck_impl_fwd_get_workspace_size
++#undef ck_impl_fwd_get_solution
++#include "ck_grouped_conv_common.cpp"
++
++// The host hides this accessor; retain the exact matching src/tensor.cpp
++// implementation locally, without interposing a host symbol.
++std::optional<miopenDataType_t> miopen::TensorDescriptor::GetCastType() const
++{
++    return this->cast_type;
++}
++
++namespace {
++bool admitted(const miopen::conv::ProblemDescription* p, miopenDataType_t type, bool tf32)
++{
++    return p != nullptr && type == miopenFloat && !tf32 && p->Is2d() && p->IsDirectionForward() &&
++           p->GetInDataType() == miopenFloat && p->GetWeightsDataType() == miopenFloat &&
++           p->GetOutDataType() == miopenFloat && !p->HasMixedDataTypes() && !p->IsTensorsCasted() &&
++           !p->HasNonPackedTensors() && (p->IsLayoutDefault() || p->IsLayoutNHWC()) &&
++           !p->GetConv().attribute.deterministic;
++}
++ck_impl_status_t empty_list(CKKernelListHandle** out)
++{
++    return ck_impl_try_catch([&] {
++        CK_IMPL_THROW_IF_NULL(out, CK_IMPL_STATUS_BAD_PARAM, "Null list output");
++        *out = new CKKernelListHandle;
++    });
++}
++ck_impl_status_t unsupported()
++{
++    return ck_impl_try_catch([] {
++        throw CkImplException(CK_IMPL_STATUS_INVALID_VALUE,
++                              "Private gfx1013 DL plugin supports packed 2D FP32 forward only");
++    });
++}
++} // namespace
++extern "C" ck_impl_status_t
++ck_impl_fwd_fill_valid_kernels(const miopen::conv::ProblemDescription* p,
++                               miopenDataType_t type,
++                               bool tf32,
++                               CKKernelListHandle** out)
++{
++    if(p == nullptr || out == nullptr)
++        return CK_IMPL_STATUS_BAD_PARAM;
++    return admitted(p, type, tf32) ? bc250_upstream_fwd_fill_valid_kernels(p, type, false, out)
++                                   : empty_list(out);
++}
++extern "C" ck_impl_status_t ck_impl_fwd_is_applicable(const miopen::conv::ProblemDescription* p,
++                                                      miopenDataType_t type,
++                                                      bool tf32,
++                                                      bool* out)
++{
++    if(p == nullptr || out == nullptr)
++        return CK_IMPL_STATUS_BAD_PARAM;
++    if(!admitted(p, type, tf32))
++    {
++        *out = false;
++        return CK_IMPL_STATUS_SUCCESS;
++    }
++    return bc250_upstream_fwd_is_applicable(p, type, false, out);
++}
++extern "C" ck_impl_status_t ck_impl_fwd_is_args_supported(const miopen::conv::ProblemDescription* p,
++                                                          const char* id,
++                                                          miopenDataType_t type,
++                                                          bool tf32,
++                                                          bool* out)
++{
++    if(p == nullptr || out == nullptr || id == nullptr)
++        return CK_IMPL_STATUS_BAD_PARAM;
++    if(!admitted(p, type, tf32))
++    {
++        *out = false;
++        return CK_IMPL_STATUS_SUCCESS;
++    }
++    return bc250_upstream_fwd_is_args_supported(p, id, type, false, out);
++}
++extern "C" ck_impl_status_t ck_impl_fwd_get_workspace_size(
++    const miopen::conv::ProblemDescription* p, miopenDataType_t type, bool tf32, size_t* out)
++{
++    if(p == nullptr || out == nullptr)
++        return CK_IMPL_STATUS_BAD_PARAM;
++    return admitted(p, type, tf32) ? bc250_upstream_fwd_get_workspace_size(p, type, false, out)
++                                   : unsupported();
++}
++extern "C" ck_impl_status_t ck_impl_fwd_get_solution(const miopen::ExecutionContext* ctx,
++                                                     const miopen::conv::ProblemDescription* p,
++                                                     const char* id,
++                                                     bool tf32,
++                                                     miopen::solver::ConvSolution** out)
++{
++    if(ctx == nullptr || p == nullptr || id == nullptr || out == nullptr)
++        return CK_IMPL_STATUS_BAD_PARAM;
++    return admitted(p, p->GetInDataType(), tf32)
++               ? bc250_upstream_fwd_get_solution(ctx, p, id, false, out)
++               : unsupported();
++}
++// The loader requires every solver group even for a forward-only private plugin.
++#define BC250_UNSUPPORTED_GROUP(prefix)                                                 \
++    extern "C" ck_impl_status_t ck_impl_##prefix##_fill_valid_kernels(                  \
++        const miopen::conv::ProblemDescription* p,                                      \
++        miopenDataType_t,                                                               \
++        bool,                                                                           \
++        CKKernelListHandle** out)                                                       \
++    {                                                                                   \
++        if(p == nullptr || out == nullptr)                                              \
++            return CK_IMPL_STATUS_BAD_PARAM;                                            \
++        return empty_list(out);                                                         \
++    }                                                                                   \
++    extern "C" ck_impl_status_t ck_impl_##prefix##_is_applicable(                       \
++        const miopen::conv::ProblemDescription* p, miopenDataType_t, bool, bool* out)   \
++    {                                                                                   \
++        if(p == nullptr || out == nullptr)                                              \
++            return CK_IMPL_STATUS_BAD_PARAM;                                            \
++        *out = false;                                                                   \
++        return CK_IMPL_STATUS_SUCCESS;                                                  \
++    }                                                                                   \
++    extern "C" ck_impl_status_t ck_impl_##prefix##_is_args_supported(                   \
++        const miopen::conv::ProblemDescription* p,                                      \
++        const char* id,                                                                 \
++        miopenDataType_t,                                                               \
++        bool,                                                                           \
++        bool* out)                                                                      \
++    {                                                                                   \
++        if(p == nullptr || id == nullptr || out == nullptr)                             \
++            return CK_IMPL_STATUS_BAD_PARAM;                                            \
++        *out = false;                                                                   \
++        return CK_IMPL_STATUS_SUCCESS;                                                  \
++    }                                                                                   \
++    extern "C" ck_impl_status_t ck_impl_##prefix##_get_workspace_size(                  \
++        const miopen::conv::ProblemDescription* p, miopenDataType_t, bool, size_t* out) \
++    {                                                                                   \
++        if(p == nullptr || out == nullptr)                                              \
++            return CK_IMPL_STATUS_BAD_PARAM;                                            \
++        return unsupported();                                                           \
++    }                                                                                   \
++    extern "C" ck_impl_status_t ck_impl_##prefix##_get_solution(                        \
++        const miopen::ExecutionContext* ctx,                                            \
++        const miopen::conv::ProblemDescription* p,                                      \
++        const char* id,                                                                 \
++        bool,                                                                           \
++        miopen::solver::ConvSolution** out)                                             \
++    {                                                                                   \
++        if(ctx == nullptr || p == nullptr || id == nullptr || out == nullptr)           \
++            return CK_IMPL_STATUS_BAD_PARAM;                                            \
++        return unsupported();                                                           \
++    }
++BC250_UNSUPPORTED_GROUP(bwd)
++BC250_UNSUPPORTED_GROUP(wrw)
++BC250_UNSUPPORTED_GROUP(3d_fwd)
++BC250_UNSUPPORTED_GROUP(3d_bwd)
++BC250_UNSUPPORTED_GROUP(3d_wrw)
++BC250_UNSUPPORTED_GROUP(fused_bias_activ)
++BC250_UNSUPPORTED_GROUP(fused_bias_res_add_activ)
++BC250_UNSUPPORTED_GROUP(fused_grp_activ)
++BC250_UNSUPPORTED_GROUP(fused_grp_bias_activ)
++BC250_UNSUPPORTED_GROUP(depthwise_fwd)
++BC250_UNSUPPORTED_GROUP(depthwise_bwd_data)
++#undef BC250_UNSUPPORTED_GROUP
+diff --git a/projects/miopen/src/ck_impl/ck_grouped_conv_fwd_impl.cpp b/projects/miopen/src/ck_impl/ck_grouped_conv_fwd_impl.cpp
+index a9e4af2908f..ad78b5d14b4 100644
+--- a/projects/miopen/src/ck_impl/ck_grouped_conv_fwd_impl.cpp
++++ b/projects/miopen/src/ck_impl/ck_grouped_conv_fwd_impl.cpp
+@@ -43,9 +43,33 @@ using DeviceOpGFwd = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleA
+     ck::tensor_operation::element_wise::PassThrough,
+     ComputeType>;
+ 
++#ifdef MIOPEN_BC250_DL_PRIVATE
++// Older DL instances omit vector-transfer parameters from GetTypeString().
++// The plugin selects by that string, so expose only the first instance per ID.
++// Keep the production factory unchanged until separately qualified.
++template <typename DataType, typename ComputeType = DataType>
++struct DeviceOpGFwdPtrs
++{
++    static auto GetInstances()
++    {
++        auto result = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
++            DeviceOpGFwd<DataType, ComputeType>>::GetInstances();
++        std::vector<std::string> seen;
++        result.erase(std::remove_if(result.begin(), result.end(), [&](const auto& op) {
++            auto id = op->GetTypeString();
++            if(std::find(seen.begin(), seen.end(), id) != seen.end())
++                return true;
++            seen.push_back(std::move(id));
++            return false;
++        }), result.end());
++        return result;
++    }
++};
++#else
+ template <typename DataType, typename ComputeType = DataType>
+ using DeviceOpGFwdPtrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
+     DeviceOpGFwd<DataType, ComputeType>>;
++#endif
+ 
+ // ---------------------------------------------------------------------------
+ // CKArgs — extracts convolution dimensions for CK argument construction.
+-- 
+2.56.0
+

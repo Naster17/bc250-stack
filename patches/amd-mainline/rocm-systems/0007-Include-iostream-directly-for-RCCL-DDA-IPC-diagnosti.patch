@@ -1,0 +1,25 @@
+From 38fd6ba67d0aa7491d3efaee3da98da4eb0a5727 Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 22 Oct 2026 21:36:18 +0200
+Subject: [PATCH 7/8] Include iostream directly for RCCL DDA IPC diagnostics
+
+The no-tracing build no longer imports iostream transitively through nvtx.h. ipc_init.cu uses std::cerr and must include its declaration directly. Preserve the imported CRLF line endings.
+---
+ projects/rccl/src/algorithms/dda/ipc/ipc_init.cu | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/projects/rccl/src/algorithms/dda/ipc/ipc_init.cu b/projects/rccl/src/algorithms/dda/ipc/ipc_init.cu
+index 73faafd67d..f442cdbf1b 100644
+--- a/projects/rccl/src/algorithms/dda/ipc/ipc_init.cu
++++ b/projects/rccl/src/algorithms/dda/ipc/ipc_init.cu
+@@ -15,6 +15,7 @@
+ #include "algorithms/dda/ipc/ipc_mem_handler.h"
+ 
+ #include <cuda_runtime.h>
++#include <iostream>
+ 
+ using nccl_dda_detail::DdaIpcBarrierState;
+ using nccl_dda_detail::ddaMaxNBlocksForScratch;
+-- 
+2.56.0
+

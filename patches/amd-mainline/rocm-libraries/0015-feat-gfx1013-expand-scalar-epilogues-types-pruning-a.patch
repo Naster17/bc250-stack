@@ -1,8 +1,8 @@
 From 7bc253117ee6864b77bb9e02644d96c40bc7aa6c Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 14 Oct 2026 00:26:36 +0200
-Subject: [PATCH] feat(gfx1013): expand scalar epilogues, types, pruning, and
- audio
+Subject: [PATCH 15/38] feat(gfx1013): expand scalar epilogues, types, pruning,
+ and audio
 
 ---
  .../10_rmsnorm2d/example_rmsnorm2d_fwd.cpp    |   4 +

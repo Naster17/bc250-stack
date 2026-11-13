@@ -1,0 +1,145 @@
+From 3616b2f9f09314d87304c4e20c77592d0dea507f Mon Sep 17 00:00:00 2001
+From: Naster17 <naster17.dev@gmail.com>
+Date: Thu, 29 Oct 2026 15:16:21 +0100
+Subject: [PATCH 35/38] Validate private DL descriptor and runtime invocation
+ contracts
+
+---
+ .../miopen/src/ck_impl/bc250_dl_private.cpp   | 107 ++++++++++++++++--
+ 1 file changed, 99 insertions(+), 8 deletions(-)
+
+diff --git a/projects/miopen/src/ck_impl/bc250_dl_private.cpp b/projects/miopen/src/ck_impl/bc250_dl_private.cpp
+index 65c273510a2..28cbd0577f2 100644
+--- a/projects/miopen/src/ck_impl/bc250_dl_private.cpp
++++ b/projects/miopen/src/ck_impl/bc250_dl_private.cpp
+@@ -1,6 +1,9 @@
+ // SPDX-License-Identifier: MIT
+ // Private API5 prototype. Not part of production plugin admission or installation.
+ #include <miopen/solver/ck_impl_interface.hpp>
++#include <climits>
++#include <cstdint>
++#include <limits>
+ #include <miopen/solver/ck_impl_error.hpp>
+ #include <miopen/conv/problem_description.hpp>
+ 
+@@ -28,11 +31,40 @@ std::optional<miopenDataType_t> miopen::TensorDescriptor::GetCastType() const
+ namespace {
+ bool admitted(const miopen::conv::ProblemDescription* p, miopenDataType_t type, bool tf32)
+ {
+-    return p != nullptr && type == miopenFloat && !tf32 && p->Is2d() && p->IsDirectionForward() &&
+-           p->GetInDataType() == miopenFloat && p->GetWeightsDataType() == miopenFloat &&
+-           p->GetOutDataType() == miopenFloat && !p->HasMixedDataTypes() && !p->IsTensorsCasted() &&
+-           !p->HasNonPackedTensors() && (p->IsLayoutDefault() || p->IsLayoutNHWC()) &&
+-           !p->GetConv().attribute.deterministic;
++    if(p == nullptr || type != miopenFloat || tf32 || !p->Is2d() || !p->IsDirectionForward() ||
++       p->GetInDataType() != miopenFloat || p->GetWeightsDataType() != miopenFloat ||
++       p->GetOutDataType() != miopenFloat || p->HasMixedDataTypes() || p->IsTensorsCasted() ||
++       p->HasNonPackedTensors() || !(p->IsLayoutDefault() || p->IsLayoutNHWC()) ||
++       p->GetConv().attribute.deterministic || p->GetConv().mode != miopenConvolution ||
++       p->GetBias() != 0 || p->GetAlpha().GetAsDouble() != 1.0 || p->GetBeta().GetAsDouble() != 0.0)
++        return false;
++    // This private DL profile binds the int32 CK argument path only.
++    for(const auto* descriptor : {&p->GetIn(), &p->GetWeights(), &p->GetOut()})
++        if(descriptor->GetNumDims() != 4 || descriptor->GetElementSpace() > INT_MAX ||
++           std::any_of(descriptor->GetLengths().begin(),
++                       descriptor->GetLengths().end(),
++                       [](auto n) { return n == 0 || n > INT_MAX; }))
++            return false;
++    const auto& x     = p->GetIn().GetLengths();
++    const auto& w     = p->GetWeights().GetLengths();
++    const auto& y     = p->GetOut().GetLengths();
++    const auto groups = p->GetGroupCount();
++    if(groups <= 0 || x[0] != y[0] || w[0] != y[1] || x[1] % groups || y[1] % groups ||
++       w[1] != x[1] / groups)
++        return false;
++    for(int axis = 0; axis < 2; ++axis)
++    {
++        const int stride   = axis ? p->GetKernelStrideW() : p->GetKernelStrideH();
++        const int dilation = axis ? p->GetDilationW() : p->GetDilationH();
++        const int pad      = axis ? p->GetPadW() : p->GetPadH();
++        if(stride <= 0 || dilation <= 0 || pad < 0)
++            return false;
++        const int64_t extent = static_cast<int64_t>(x[axis + 2]) + 2 * int64_t{pad} -
++                               (static_cast<int64_t>(w[axis + 2]) - 1) * dilation - 1;
++        if(extent < 0 || extent / stride + 1 != static_cast<int64_t>(y[axis + 2]))
++            return false;
++    }
++    return true;
+ }
+ ck_impl_status_t empty_list(CKKernelListHandle** out)
+ {
+@@ -105,9 +137,68 @@ extern "C" ck_impl_status_t ck_impl_fwd_get_solution(const miopen::ExecutionCont
+ {
+     if(ctx == nullptr || p == nullptr || id == nullptr || out == nullptr)
+         return CK_IMPL_STATUS_BAD_PARAM;
+-    return admitted(p, p->GetInDataType(), tf32)
+-               ? bc250_upstream_fwd_get_solution(ctx, p, id, false, out)
+-               : unsupported();
++    if(!admitted(p, p->GetInDataType(), tf32))
++        return unsupported();
++    bool valid  = false;
++    auto status = bc250_upstream_fwd_is_args_supported(p, id, miopenFloat, false, &valid);
++    if(status != CK_IMPL_STATUS_SUCCESS)
++        return status;
++    if(!valid)
++        return unsupported();
++    return ck_impl_try_catch([&] {
++        miopen::solver::ConvSolution* raw = nullptr;
++        auto created = bc250_upstream_fwd_get_solution(ctx, p, id, false, &raw);
++        if(created != CK_IMPL_STATUS_SUCCESS)
++            throw CkImplException(created, "Private DL upstream solution creation failed");
++        std::unique_ptr<miopen::solver::ConvSolution> solution(raw);
++        CK_IMPL_THROW_IF_FALSE(solution && solution->invoker_factory,
++                               CK_IMPL_STATUS_INTERNAL_ERROR,
++                               "Missing DL invoker");
++        auto factory              = std::move(*solution->invoker_factory);
++        solution->invoker_factory = [factory   = std::move(factory),
++                                     x         = p->GetIn(),
++                                     w         = p->GetWeights(),
++                                     y         = p->GetOut(),
++                                     workspace = solution->workspace_sz](
++                                        const std::vector<miopen::Kernel>& kernels) {
++            auto invoke = factory(kernels);
++            return [invoke = std::move(invoke), x, w, y, workspace](
++                       const miopen::Handle& handle, const miopen::AnyInvokeParams& params) {
++                const auto& data = params.CastTo<miopen::conv::DataInvokeParams>();
++                const auto& t    = data.tensors;
++                if(data.alpha.GetAsDouble() != 1.0 || data.beta.GetAsDouble() != 0.0 ||
++                   !(t.inDesc == x) || !(t.wDesc == w) || !(t.outDesc == y) ||
++                   t.inDesc.GetCastType() || t.wDesc.GetCastType() || t.outDesc.GetCastType() ||
++                   !t.in || !t.w || !t.out || data.workSpaceSize < workspace ||
++                   (workspace && !data.workSpace))
++                    MIOPEN_THROW(miopenStatusBadParm, "Private DL invocation contract mismatch");
++                auto range = [](const void* pointer, size_t bytes) {
++                    const auto begin = reinterpret_cast<uintptr_t>(pointer);
++                    if(begin % alignof(float) ||
++                       bytes > std::numeric_limits<uintptr_t>::max() - begin)
++                        MIOPEN_THROW(miopenStatusBadParm, "Private DL pointer alignment/range");
++                    return std::make_pair(begin, begin + bytes);
++                };
++                const auto in      = range(t.in, x.GetNumBytes());
++                const auto weights = range(t.w, w.GetNumBytes());
++                const auto out     = range(t.out, y.GetNumBytes());
++                auto overlaps      = [](auto a, auto b) {
++                    return a.first < b.second && b.first < a.second;
++                };
++                if(overlaps(out, in) || overlaps(out, weights))
++                    MIOPEN_THROW(miopenStatusBadParm, "Private DL output overlaps an input");
++                if(workspace)
++                {
++                    const auto scratch = range(data.workSpace, workspace);
++                    if(overlaps(scratch, in) || overlaps(scratch, weights) ||
++                       overlaps(scratch, out))
++                        MIOPEN_THROW(miopenStatusBadParm, "Private DL workspace overlaps tensors");
++                }
++                invoke(handle, params);
++            };
++        };
++        *out = solution.release();
++    });
+ }
+ // The loader requires every solver group even for a forward-only private plugin.
+ #define BC250_UNSUPPORTED_GROUP(prefix)                                                 \
+-- 
+2.56.0
+
