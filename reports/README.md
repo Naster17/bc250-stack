@@ -463,7 +463,7 @@ Defect found and fixed: the first sustained probe queued an unbounded async
 backlog whose single sync consumed the whole budget (one window, trivial
 degradation); fixed with calibrated bounded synchronized windows + a regression
 test, the buggy run retained as labelled evidence. 23 new local tests (suite
-349). Board boot unchanged, three guardians passed, kernel log and distributed
+350). Board boot unchanged, three guardians passed, kernel log and distributed
 registry unchanged, no foreign containers, all boot-guards acknowledged, idle
 post-run; the deployment host was untouched. Full detail and evidence hashes:
 `bc250-therock` fork, `docs/development/bc250_gemm_gap_d72_results/`.
