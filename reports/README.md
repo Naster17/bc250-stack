@@ -78,6 +78,30 @@ speedup is claimed. Full identities, evidence and recovery commands are in the
 `bc250-therock` fork (`docs/development/bc250_ck_plugin_b0713_results/` and
 `bc250_ck_plugin_b0713_usage.md`).
 
+## N4 — read-only telemetry provenance and semantics (optional extension)
+
+Completed 2026-11-13 on board 1 (r2 release). A read-only audit re-established the
+running SMU governor/source/overlay provenance and validated attained-clock/
+temperature/power/fan semantics: 84 samples (~5 Hz) through idle + one bounded 8 s
+native integer GPU load + cooldown, with kernel log, mounts, governor/config/fan
+hashes and power policy all unchanged. **No clock, voltage, fan-policy, governor,
+overlay, kernel or boot change**, and no raw SMU mailbox commands.
+
+Findings: the external governor still bind-mounts tmpfs over `gpu_metrics` and
+hwmon `freq1_input`, so those readings are governor-supplied; `auto` power policy
+does not imply stock clocks. The running governor's source is **not pinned** — its
+musl cross-build differs from the retained source repo, and the `freq1_input`
+overlay code is absent from every retained branch. On the r2 kernel all clock views
+(governor overlay, kernel-translated, hwmon, DRM) agree on sensible discrete steps
+(1000–2000 MHz), unlike the earlier r3 kernel's nonsensical current-clock slot —
+but this is the governor-set SMU clock, **not independent physical attained-clock
+calibration**. Utilization remains governor-derived (`gpu_busy_percent` is
+EOPNOTSUPP on this board). Resolving physical attained clock and pinning the
+governor build source remain optional deeper work (a guarded read-only
+`GetGfxFrequency` live-clock getter after establishing SMU mailbox ownership).
+Full detail is in the `bc250-therock` fork
+(`docs/development/bc250_n4_telemetry_results/`).
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
