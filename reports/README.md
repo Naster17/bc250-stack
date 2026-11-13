@@ -416,6 +416,58 @@ user data, no default/package/release change. Full detail and evidence
 hashes: `bc250-therock` fork,
 `docs/development/bc250_gemm_efficiency_d71_results/`.
 
+## D72 — GEMM in-model-vs-fixture gap diagnostic (optional extension)
+
+Completed 2026-11-13 on the .104 release (D67-pattern guardians, D71-hardened
+envelope). D71 left the dominant base projection's ~4× in-model-vs-fixture
+gap (35 vs 8.8 ms/call) unexplained and listed three candidate causes without
+testing them. D72 tests all three with isolated GEMM microbenchmarks — no
+model training, no full-model profile (avoiding the D71 host-thrash vector),
+no source/default/release/preset change, no user data.
+
+**Headline: none of the three cheap explanations reproduces the gap; the GEMM
+cost is structural/systemic, not a per-GEMM property.**
+
+| Hypothesis | Measurement | Ratio | Verdict |
+| --- | --- | ---: | --- |
+| Backward `fp16_alt_impl` flag | fwd 9.217 ms vs bwd 9.446 ms; identical solution set `[-318,-319]` for both flags; all 8 swept mm layouts 0.987–1.025× | 1.025× | ruled out |
+| Thermal / clock throttling | 21 windows × 221 calls over 36 s flat ~7.8 ms/call; clock pinned 2000 MHz throughout; temp ≤ 77 °C | 1.002× | ruled out |
+| Memory locality (cold pool) | hot 7.828 ms vs cold 7.826 ms | 0.9997× | ruled out |
+| Memory locality (fresh write) | hot 7.828 ms vs fresh 8.017 ms | 1.024× | ruled out |
+
+The port sets `rocblas_gemm_flags_fp16_alt_impl` (0x4) on backward fp16 GEMMs
+(`CUDABlas.cpp`, via `ROCmBackwardPassGuard`); D71's sweep used `flags=0` only
+and never exercised that path — D72 shows it changes nothing on gfx1013. The
+sustained probe also closes N4's attained-clock question for sustained GEMM
+load (read-only hwmon, no SMU mailbox): the clock holds 2000 MHz and throughput
+is flat. The dominant layout is taken from D71's per-shape in-model profile by
+device time, not a geometry proxy (the two large projections tie on K×N).
+
+**Attribution: `not_reproduced_by_isolated_fixtures`** (pre-declared thresholds
+1.5 meaningful / 2.5 dominant, above D71's 0.96–1.05 noise band; every ratio
+~1.0). The fixture runs the dominant GEMM at ~7.8–9.4 ms under *every* isolated
+condition vs 35 ms in-model — the 3.7–4.5× gap survives all tests. The gap is a
+**systemic in-model execution effect**; the remaining untested candidates are
+whole-model working-set/TLB pressure (2 B parameters + activations + optimizer
+state vs one ~37 MB tensor pair), kernel concurrency/queueing (~157 k
+launches/update), and profiler device-time attribution including wait time.
+None is addressable by per-GEMM tuning (flag / solution / locality).
+
+**This reinforces D71's bottom line and narrows the GEMM R&D scope:** the
+tractable near-term levers remain native depthwise causal conv, graph-capture
+integration, and the D68/non-GEMM remainder; a GEMM breakthrough requires deep
+microarchitectural investigation of the systemic effect, now with the cheap
+causes eliminated.
+
+Defect found and fixed: the first sustained probe queued an unbounded async
+backlog whose single sync consumed the whole budget (one window, trivial
+degradation); fixed with calibrated bounded synchronized windows + a regression
+test, the buggy run retained as labelled evidence. 23 new local tests (suite
+349). Board boot unchanged, three guardians passed, kernel log and distributed
+registry unchanged, no foreign containers, all boot-guards acknowledged, idle
+post-run; the deployment host was untouched. Full detail and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_gemm_gap_d72_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
