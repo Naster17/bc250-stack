@@ -1,7 +1,7 @@
 From bda0831ba49ef9d0ba2968a800642e5abaec5dd5 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Thu, 15 Oct 2026 16:27:36 +0200
-Subject: [PATCH 03/22] feat(hip): add opt-in scalar tiled SDPA for gfx1013
+Subject: [PATCH 03/23] feat(hip): add opt-in scalar tiled SDPA for gfx1013
 
 ---
  .../native/transformers/cuda/sdp_utils.cpp    |   4 +-

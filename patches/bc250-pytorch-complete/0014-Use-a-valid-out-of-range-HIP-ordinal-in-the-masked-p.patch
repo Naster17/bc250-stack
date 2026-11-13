@@ -1,7 +1,7 @@
 From da453699db3b79bc198dc3b3cc1bf57633743b1c Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 17:07:21 +0200
-Subject: [PATCH 14/22] Use a valid out-of-range HIP ordinal in the masked
+Subject: [PATCH 14/23] Use a valid out-of-range HIP ordinal in the masked
  profiler test
 
 ---

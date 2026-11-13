@@ -188,6 +188,63 @@ no runtime/default/package/source change. 24 new local tests (suite 249). Full
 detail, method, stopped-attempt records and evidence hashes are in the
 `bc250-therock` fork (`docs/development/bc250_distributed_benchmark_d67_results/`).
 
+## D68 — fused native solve/scan (optional extension)
+
+Completed 2026-11-13 on the .104 release; the first bounded scope of the deeper
+bottleneck follow-up after D66. The native gated-delta chunk op's remaining cost
+is attributed (owned profile fixture): the sequential Python chunk scan is ~70%
+of forward+backward at B1/H16/D128/L1024, and the two batched ATen triangular
+solves ~48% at the tiny single-chunk geometry.
+
+The patched Torch source (fork commit `262accc`, patch `0023` of the complete
+series) adds an **opt-in** `use_fused_solve_scan=True` to
+`torch.nn.bc250_gated_delta.chunk_gated_delta_rule`:
+
+- one in-register Triton unit-triangular inverse (analytic backward) replaces
+  both batched solves;
+- a column-blocked fused linear-recurrence scan (`S_{i+1} = M_i S_i + N_i`,
+  adjoint backward, saved entering states) replaces the Python loop; the
+  M/N/P/R precompute stays autograd-visible ATen;
+- both kernels follow the port's qualified elementwise Triton convention
+  (no `tl.dot`, wave32, `enable_fp_fusion=False`);
+- **selective from two chunks up** (`FUSED_SCAN_MIN_CHUNKS = 2`, measured
+  crossover: at one chunk every fusion variant regresses 0.79–0.94×, so
+  single-chunk calls keep the default path); explicit refusal above a 256 MiB
+  saved-state cap; FP16/BF16 keep reference-ordered preparation.
+
+Qualified results (final run; candidate module staged as an owned fixture, the
+installed release module untouched):
+
+| Measure | Default | Fused | Speedup |
+| --- | ---: | ---: | ---: |
+| Chunk op fwd+grads FP32, B1/H16/D128/L1024 | 26.17 ms | 14.49 ms | **1.81×** |
+| Chunk op fwd+grads FP32, B2/H2/D16/L256 | 8.09 ms | 5.12 ms | 1.58× |
+| Chunk op fwd+grads FP32, single chunk (L32) | 4.57 ms | 4.30 ms | 1.0× (default path) |
+| Hybrid-tiny model step FP32, seq 256 (D66 route + flag) | 19.05 ms | 16.55 ms | **1.15×** |
+| Hybrid-tiny model step BF16/FP16, seq 256 | 22.55/22.82 ms | 19.33/19.68 ms | 1.17/1.16× |
+
+BF16/FP16 op speedups 1.13–1.77× where applied. Numerical parity within
+pre-declared bounds: op fused-vs-default rel-L2 ≤ 1.5e-6 FP32 / ≤ 9.3e-5 low
+precision (bounds 1e-5 / 1e-2); independent CPU/FP64 token-recurrence anchor at
+0.3–5.6% of the A06 tolerances; model parity at seq 256 within the D66 bounds
+(FP32 worst gradient 1.52e-3 ≤ 2e-3) with the fused path **7× closer to the
+FP64 reference than the frozen fallback** (2.1e-4 vs 1.4e-3). The extended A06
+battery passes 72/72 on the candidate; the default path is bitwise identical to
+the installed module; refusal checks (non-bool flag, state cap) pass. Board
+clean (0 containers/GPU clients pre/post, no reboot); ordinary caller under the
+immutable release — **no default, package, release or installed-module change**.
+20 new local tests (suite 269).
+
+Defects retained on record: a single-chunk regression in the first
+unconditional design (fixed by the measured selectivity), and a fixture-side
+routing-injection leak that contaminated an intermediate model-timing control
+(root-caused by inject/restore tracing, fixed, and re-qualified with per-case
+fused-kernel counters). Full detail and evidence hashes are in the
+`bc250-therock` fork (`docs/development/bc250_gated_delta_d68_results/`).
+Remaining optional headroom: finer per-geometry selectivity (~5% at four
+chunks), trainable-weight native conv, low-precision cast overhead,
+larger-geometry admission.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

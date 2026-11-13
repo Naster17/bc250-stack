@@ -153,6 +153,77 @@ Bounded owned tiny-model result — not a production, model-quality, convergence
 or general-model speed guarantee. Eager first-order only; no compile/graph or
 higher-order gradients. PLAN-10 bottlenecks #1 (low-precision cast overhead) and
 #4 (cold JIT first step) are unchanged. Remaining optional scopes: fused native
-solve/scan kernels, trainable-weight native conv, low-precision cast overhead,
-larger-geometry admission. Full report and evidence hashes:
-`bc250-therock` fork, `docs/development/bc250_bottleneck_d66_results/`.
+solve/scan kernels (done in D68, below), trainable-weight native conv,
+low-precision cast overhead, larger-geometry admission. Full report and evidence
+hashes: `bc250-therock` fork, `docs/development/bc250_bottleneck_d66_results/`.
+
+---
+
+# D68 follow-up — fused native solve/scan (2026-11-13)
+
+The first bounded scope of the deeper bottleneck work after D66. Section
+attribution of the native chunk op (owned profile fixture, exact-replica
+CUDA-event breakdown + isolated microbenchmarks): the sequential Python chunk
+scan is **~70% of forward+backward** at B1/H16/D128/L1024 (launch-bound
+autograd through the loop), and the two batched ATen triangular solves ~48% at
+the tiny single-chunk geometry.
+
+The patched Torch source (fork commit `262accc`, patch `0023` of the complete
+series) adds an opt-in `use_fused_solve_scan=True` to the native op:
+
+- a fused in-register Triton unit-triangular inverse with analytic backward
+  (`grad_A = -tril(M^T dM M^T, -1)`) replaces both solves;
+- a fused column-blocked linear-recurrence scan replaces the loop:
+  `S_{i+1} = (d_i I - k_i^T w_i) S_i + k_i^T u_i`,
+  `out_i = (q_i - attn_i w_i) S_i + attn_i u_i`, with an adjoint backward and
+  saved entering states; the M/N/P/R precompute stays autograd-visible ATen;
+- elementwise Triton convention (no `tl.dot`, wave32, `num_warps=4`,
+  `enable_fp_fusion=False`), matching A05/A06;
+- **selective from two chunks up** (`FUSED_SCAN_MIN_CHUNKS = 2`): the measured
+  decomposition showed every fusion variant regresses at one chunk
+  (0.79–0.94×) and wins from two chunks up, so single-chunk calls keep the
+  default path; explicit refusal above a 256 MiB saved-state cap.
+
+## Results (.104 release, final qualification run)
+
+| Measure | Default | Fused | Speedup |
+| --- | ---: | ---: | ---: |
+| Chunk op fwd+all-grads FP32, B1 H16 D128 L1024 | 26.17 ms | 14.49 ms | **1.81×** |
+| Chunk op fwd+all-grads BF16/FP16, same geometry | 26.76/26.84 ms | 15.16/15.14 ms | 1.76/1.77× |
+| Chunk op fwd+all-grads FP32, B2 H2 D16 L256 | 8.09 ms | 5.12 ms | 1.58× |
+| Chunk op fwd+all-grads FP32, B2 H2 D16 L32 (C=1) | 4.57 ms | 4.30 ms | 1.0× (default) |
+| Hybrid-tiny model step FP32, seq 256 (D66 route + flag) | 19.05 ms | 16.55 ms | **1.15×** |
+| Hybrid-tiny model step BF16/FP16, seq 256 | 22.55/22.82 ms | 19.33/19.68 ms | 1.17/1.16× |
+
+Model step vs frozen at seq 256: 2.60/2.38/2.35× (D66 route alone: 2.26/2.04/
+2.03×). At seq 32 the flag keeps the default path — no regression.
+
+## Qualification
+
+- Extended A06 battery on the candidate: **72/72** (fused CPU-FP64 recurrence
+  with initial state + state gradients at the unchanged A06 tolerances;
+  fused-vs-default equivalence; low-precision reference preparation; refusals).
+- Op parity fused-vs-default: FP32 ≤ 1.5e-6, BF16/FP16 ≤ 9.3e-5 rel-L2
+  (pre-declared bounds 1e-5 / 1e-2). Independent CPU/FP64 recurrence anchor at
+  0.3–5.6% of the A06 tolerances.
+- Model parity at seq 256 within the D66 bounds (FP32 worst gradient 1.52e-3 ≤
+  2e-3); the fused path is **7× closer to the FP64 reference than the frozen
+  fallback** (2.1e-4 vs 1.4e-3 rel-L2).
+- Default path bitwise identical to the installed module; non-bool flag and
+  state-cap refusals pass; per-case fused-kernel counters prove which path ran.
+- Board clean pre/post (0 containers/GPU clients, no reboot); ordinary caller
+  under the immutable release; the installed module is unchanged. 20 new local
+  tests (suite 269), Black clean.
+- Retained defect records: the unconditional first design regressed at one
+  chunk (fixed by the measured selectivity); a fixture-side routing-injection
+  leak contaminated an intermediate model-timing control (root-caused by
+  inject/restore tracing, fixed, re-qualified).
+
+## Boundaries and remaining headroom
+
+Bounded owned result — not a production or general-model speed guarantee.
+Eager first-order only; opt-in, no default/release change. Remaining optional
+scopes: finer per-geometry selectivity (~5% at four chunks where scan-only
+beats the combined path), trainable-weight native conv, low-precision cast
+overhead, larger-geometry admission. Full report and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_gated_delta_d68_results/`.

@@ -1,7 +1,7 @@
 From 8d8b18df558cb478727ba2179f2e01dfce20ea40 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 4 Nov 2026 15:43:12 +0100
-Subject: [PATCH 22/22] Keep the TCPStore owner alive until peer agents finish
+Subject: [PATCH 22/23] Keep the TCPStore owner alive until peer agents finish
  exit reads
 
 The symmetric terminal barrier can return on rank zero before another agent issues its final wait. Use the existing rank-aware synchronize/get_all completion protocol so the TCPStore daemon outlives peer reads.

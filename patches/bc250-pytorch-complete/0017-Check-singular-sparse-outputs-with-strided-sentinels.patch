@@ -1,7 +1,7 @@
 From 2b449c4abe36b896a6efb2a68e7a42d9922d5696 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 21:26:45 +0200
-Subject: [PATCH 17/22] Check singular sparse outputs with strided sentinels on
+Subject: [PATCH 17/23] Check singular sparse outputs with strided sentinels on
  a private stream
 
 ---

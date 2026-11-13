@@ -1,7 +1,7 @@
 From 6ed3d12b184a27d21c0fa41d43269ff6bd17f1e0 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 16 Oct 2026 19:41:49 +0200
-Subject: [PATCH 08/22] Implement native gfx1013 structured sparse first-order
+Subject: [PATCH 08/23] Implement native gfx1013 structured sparse first-order
  backward
 
 Raw compression/matmul lacked derivatives. Public sparse backward also needed a

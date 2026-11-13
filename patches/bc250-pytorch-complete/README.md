@@ -7,13 +7,16 @@ by the umbrella fork CI (`tools/verify_patch_series.py`, component `pytorch`).
 
 - **Upstream:** `ROCm/pytorch` (the ROCm fork, *not* mainline `pytorch/pytorch`)
 - **Base:** `c779020750d7dc99a39ea8c104ef8df1fc9d0755` (release/2.13)
-- **Patches:** 22, ordered `0001`–`0022`
-- **Reconstructed head:** `8d8b18df558cb478727ba2179f2e01dfce20ea40`
-- **Reconstructed tree:** `33a862732a52c8825a3d1f9c0b609d06fba0df65`
+- **Patches:** 23, ordered `0001`–`0023`
+- **Reconstructed head:** `262accc8ac53c34cd649d4df49c0cf22999eb10d`
+- **Reconstructed tree:** `ce52766844bf301974b9b4887072660c62ecaa12`
 
-The tree exactly matches the D46 verified complete-export record
-(`torch-complete.json` in the private D46 evidence store), which independently
-reconstructed the same head from the same baseline.
+Patches `0001`–`0022` reconstruct head `8d8b18df558cb478727ba2179f2e01dfce20ea40`
+(tree `33a862732a52c8825a3d1f9c0b609d06fba0df65`), exactly matching the D46
+verified complete-export record (`torch-complete.json` in the private D46
+evidence store). Patch `0023` adds the D68 opt-in fused gated-delta solve/scan
+(`use_fused_solve_scan`, default path unchanged); the deployed release still
+ships the pre-D68 module.
 
 ## Reconstruct
 
@@ -21,7 +24,7 @@ reconstructed the same head from the same baseline.
 git clone https://github.com/ROCm/pytorch.git && cd pytorch
 git checkout c779020750d7dc99a39ea8c104ef8df1fc9d0755
 git am /path/to/bc250-stack/patches/bc250-pytorch-complete/*.patch
-git rev-parse HEAD^{tree}   # must equal 33a862732a52c8825a3d1f9c0b609d06fba0df65
+git rev-parse HEAD^{tree}   # must equal ce52766844bf301974b9b4887072660c62ecaa12
 ```
 
 `git am` can create different commit hashes through committer metadata; the tree

@@ -1,7 +1,7 @@
 From a5249802372882dedccb91d3fd4d73be9fcdf2bd Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sat, 24 Oct 2026 13:45:37 +0200
-Subject: [PATCH 21/22] Normalize layouts in GPU weight-only INT8 matmul
+Subject: [PATCH 21/23] Normalize layouts in GPU weight-only INT8 matmul
 
 The generic GPU kernel indexes activations and row scales as contiguous arrays.
 Converting them to FP32 preserves transpose strides and leaves FP32 views

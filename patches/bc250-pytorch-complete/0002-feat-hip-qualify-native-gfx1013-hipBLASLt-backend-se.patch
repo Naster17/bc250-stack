@@ -1,7 +1,7 @@
 From 4f13bf86476252e3d57b17d1c72f8512814400e9 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 14 Oct 2026 10:06:26 +0200
-Subject: [PATCH 02/22] feat(hip): qualify native gfx1013 hipBLASLt backend
+Subject: [PATCH 02/23] feat(hip): qualify native gfx1013 hipBLASLt backend
  selection
 
 ---

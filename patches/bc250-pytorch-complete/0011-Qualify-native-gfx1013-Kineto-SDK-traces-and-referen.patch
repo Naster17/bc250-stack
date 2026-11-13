@@ -1,7 +1,7 @@
 From 4af4a1508a6ec0b7b2b29f5e0115f8477c4d1bb5 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 10:53:11 +0200
-Subject: [PATCH 11/22] Qualify native gfx1013 Kineto SDK traces and reference
+Subject: [PATCH 11/23] Qualify native gfx1013 Kineto SDK traces and reference
  behavior
 
 Add seven device tests for the existing rocprofiler-sdk backend enabled by

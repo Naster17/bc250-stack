@@ -1,7 +1,7 @@
 From f807099fbb874d61eacfb573b7b1095f9514992c Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 23 Oct 2026 12:21:10 +0200
-Subject: [PATCH 19/22] Reject unsupported numeric FP8 reductions while
+Subject: [PATCH 19/23] Reject unsupported numeric FP8 reductions while
  retaining byte copies
 
 The low-level NCCL wrappers map Float8 storage to uint8 for copying, but

@@ -1,7 +1,7 @@
 From b823a1b2f327d5ba07af0796876f93e5308a1012 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 17:01:25 +0200
-Subject: [PATCH 12/22] Keep ROCm profiler capable after a CPU-only first
+Subject: [PATCH 12/23] Keep ROCm profiler capable after a CPU-only first
  capture
 
 ---

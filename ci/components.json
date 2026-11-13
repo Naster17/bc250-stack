@@ -79,9 +79,9 @@
       "patches": "patches/bc250-pytorch-complete",
       "fork": "https://github.com/Naster17/bc250-torch.git",
       "fork_branch": "bc250/gfx1013",
-      "published_head": "8d8b18df558cb478727ba2179f2e01dfce20ea40",
-      "expected_tree": "33a862732a52c8825a3d1f9c0b609d06fba0df65",
-      "patch_count": 22,
+      "published_head": "262accc8ac53c34cd649d4df49c0cf22999eb10d",
+      "expected_tree": "ce52766844bf301974b9b4887072660c62ecaa12",
+      "patch_count": 23,
       "apply": "index"
     }
   }

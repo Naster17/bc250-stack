@@ -1,7 +1,7 @@
 From dc8fea0cb8b157cb415359033e4f0175d2ebfa56 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 21:20:08 +0200
-Subject: [PATCH 16/22] Keep sparse pivot masking confined to the
+Subject: [PATCH 16/23] Keep sparse pivot masking confined to the
  two-dimensional solve path
 
 ---

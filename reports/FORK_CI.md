@@ -54,7 +54,7 @@ no binary diffs.
 | torchcodec | `d9dc542` (meta-pytorch/torchcodec) | 1 | am | `3b481416` |
 | rocm-libraries | `3d8f334` (ROCm/rocm-libraries) | 38 | index | `046ed8e3` |
 | rocm-systems | `d5c5280` (ROCm/rocm-systems, `hip-version_10.2.62820`) | 8 | index | `65deb63f` |
-| pytorch | `c779020` (ROCm/pytorch release/2.13) | 22 | index | `33a86273` |
+| pytorch | `c779020` (ROCm/pytorch release/2.13) | 23 | index | `ce527668` |
 
 `expected_tree` pins the published fork content; if a fork is re-published, refresh
 the manifest entry (base, published_head, expected_tree, patch_count) and re-verify.
@@ -90,6 +90,18 @@ authoritative local source histories with `git format-patch base..head`:
 
 No fork branch changed — the forks already carried the full histories; only the
 umbrella's published series were incomplete. No board access; publication-only.
+
+## D68 update (2026-11-13)
+
+The pytorch series was extended to **23 patches** by the D68 fused gated-delta
+solve/scan commit: fork `bc250/gfx1013` head
+`262accc8ac53c34cd649d4df49c0cf22999eb10d`, tree
+`ce52766844bf301974b9b4887072660c62ecaa12` (patches `0001`–`0022` still
+reconstruct the D46-verified `8d8b18d`/`33a86273` tree; `0023` adds the opt-in
+`use_fused_solve_scan` path, default unchanged). Manifest entry refreshed and
+re-verified locally in index mode before push; the deployed release is
+unchanged. See `docs/PERFORMANCE.md` (D68) and the `bc250-therock` report
+`docs/development/bc250_gated_delta_d68_results/`.
 
 ## Extending
 

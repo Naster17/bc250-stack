@@ -1,7 +1,7 @@
 From 71a0426566bc9b952d9aa9b41f4a9d79ce46e0e8 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sat, 17 Oct 2026 02:33:04 +0200
-Subject: [PATCH 10/22] Correct low-precision gated-delta parity and support
+Subject: [PATCH 10/23] Correct low-precision gated-delta parity and support
  head256 attention
 
 Native preparation rounding and derivative ordering amplified through the BF16

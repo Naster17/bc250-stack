@@ -1,7 +1,7 @@
 From a434d0375447275f1e7a0d0ef24c8ebbecff9dcb Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 21:19:21 +0200
-Subject: [PATCH 15/22] Mark exact sparse triangular pivots as NaN on ROCm
+Subject: [PATCH 15/23] Mark exact sparse triangular pivots as NaN on ROCm
 
 ---
  .../ATen/native/sparse/cuda/SparseBlas.cpp    |   5 +

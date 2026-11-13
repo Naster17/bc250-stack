@@ -1,7 +1,7 @@
 From ade6fcc1ae7574b2f5ad285c8a2c592af1e3e99c Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 23 Oct 2026 11:31:50 +0200
-Subject: [PATCH 18/22] Use BF16 scalar storage for NCCL PreMulSum
+Subject: [PATCH 18/23] Use BF16 scalar storage for NCCL PreMulSum
 
 The BF16 branch instantiated unpackPreMulSum with float. NCCL/RCCL reads a
 scalar in the reduction dtype: the host case read the low two bytes of a

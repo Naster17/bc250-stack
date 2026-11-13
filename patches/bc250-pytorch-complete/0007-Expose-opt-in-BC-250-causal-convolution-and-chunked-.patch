@@ -1,7 +1,7 @@
 From 6181d00b5beb8cc9fd6800da7a19c8abf756b30d Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 16 Oct 2026 18:58:16 +0200
-Subject: [PATCH 07/22] Expose opt-in BC-250 causal convolution and chunked
+Subject: [PATCH 07/23] Expose opt-in BC-250 causal convolution and chunked
  loss
 
 The earlier Qwen helper only differentiated frozen convolution inputs and had a

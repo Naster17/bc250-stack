@@ -77,7 +77,7 @@ run correctly on RDNA1.
 
 ## Layer 5 — PyTorch (`bc250-torch`)
 
-The framework, based on **`ROCm/pytorch`**. The complete 22-patch series
+The framework, based on **`ROCm/pytorch`**. The complete 23-patch series
 (`patches/bc250-pytorch-complete`, single base `c779020750`) adds the native
 gfx1013 training surface:
 
@@ -86,6 +86,7 @@ gfx1013 training surface:
 - **opt-in training ops** (explicit, never silent fallback);
 - native **sparse autograd**;
 - native **gated-delta** preparation, precision handling, and head-256 attention;
+  opt-in fused solve/scan (D68, selective from two chunks, default unchanged);
 - native **Kineto SDK** profiling and ROCm profiler CPU-first initialization;
 - ROCm sparse triangular pivot NaN fix;
 - distributed/quantization hardening: BF16 NCCL PreMulSum storage, FP8 reduction

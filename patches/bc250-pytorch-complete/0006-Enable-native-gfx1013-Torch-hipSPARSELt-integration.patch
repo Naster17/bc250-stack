@@ -1,7 +1,7 @@
 From 8cdfcc8e0feb3689a1ec1d292539af083b13ea94 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 16 Oct 2026 18:46:36 +0200
-Subject: [PATCH 06/22] Enable native gfx1013 Torch hipSPARSELt integration
+Subject: [PATCH 06/23] Enable native gfx1013 Torch hipSPARSELt integration
 
 The old build cache predates the installed hipSPARSELt package, and the Torch
 architecture gate excluded gfx1013. Enable the native scalar path, validate its

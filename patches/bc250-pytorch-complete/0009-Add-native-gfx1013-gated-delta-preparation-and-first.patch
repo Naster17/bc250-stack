@@ -1,7 +1,7 @@
 From ba6cbcd2fafac1a6503f1f580033fbf72ad2a4f9 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sat, 17 Oct 2026 01:59:30 +0200
-Subject: [PATCH 09/22] Add native gfx1013 gated-delta preparation and
+Subject: [PATCH 09/23] Add native gfx1013 gated-delta preparation and
  first-order gradients
 
 Fuse Q/K normalization and scaling, beta gating, layout/padding and chunk-local

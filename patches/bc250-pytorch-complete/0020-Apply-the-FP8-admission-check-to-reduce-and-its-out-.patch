@@ -1,7 +1,7 @@
 From 14cfef2d8c5e8c2c40e3b24587233227ea8dadc3 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 23 Oct 2026 12:26:35 +0200
-Subject: [PATCH 20/22] Apply the FP8 admission check to reduce and its
+Subject: [PATCH 20/23] Apply the FP8 admission check to reduce and its
  out-of-place helper
 
 The guarded single-device B03.7 test exposed that ProcessGroupNCCL::reduce

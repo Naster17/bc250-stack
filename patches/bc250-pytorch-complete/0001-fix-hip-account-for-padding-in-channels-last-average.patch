@@ -1,7 +1,7 @@
 From b36877506d38eb74abcd01d667e9b05d6b60430a Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Tue, 13 Oct 2026 11:36:27 +0200
-Subject: [PATCH 01/22] fix(hip): account for padding in channels-last
+Subject: [PATCH 01/23] fix(hip): account for padding in channels-last
  average-pool gradients
 
 ---
