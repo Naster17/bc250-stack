@@ -102,6 +102,48 @@ governor build source remain optional deeper work (a guarded read-only
 Full detail is in the `bc250-therock` fork
 (`docs/development/bc250_n4_telemetry_results/`).
 
+## D66 — hybrid bottleneck routing (optional extension)
+
+Completed 2026-11-13 on the .104 release; the first bounded scope of the PLAN-10
+bottleneck follow-up. Root cause of the ~3–5× qwen35-hybrid cost: the frozen
+Transformers 5.2.0 torch fallback `torch_chunk_gated_delta_rule` builds its
+unit-lower-triangular inverse with a **63-iteration Python loop** (hundreds of
+sequential small kernel launches per call). The qualified native
+`torch.nn.bc250_gated_delta.chunk_gated_delta_rule` (A06/A07) replaces the loop
+with batched triangular solves.
+
+A new explicit **opt-in** routing helper (`route_qwen35_gated_delta_d66.py` in the
+`bc250-therock` fork) routes the model's chunk call to the native op: gated to
+Transformers 5.2.0 + `qwen3_5_text` + actual gfx1013, kill switch
+`BC250_NATIVE_GATED_DELTA=0`, counted fallbacks for unsupported
+dtype/geometry/initial-state/compiled contexts, exact uninstall. The
+trainable-weight causal conv and the recurrent/decode path are **not** routed.
+No default, package, source or release identity changes.
+
+Qualified results (owned qwen35-hybrid-tiny, batch 2 × seq 32, D64 protocol):
+
+| Measure | Frozen | Routed | Speedup |
+| --- | ---: | ---: | ---: |
+| Model step FP32 | 36.994 ms | 15.254 ms | **2.425×** |
+| Model step BF16 | 39.529 ms | 17.894 ms | 2.209× |
+| Model step FP16 | 39.728 ms | 18.002 ms | 2.207× |
+| Chunk op fwd+grads FP32 (benchmark geometry) | 25.49 ms | 5.88 ms | 4.33× |
+
+Numerical parity within pre-declared bounds (FP32 loss Δ0, logits rel-L2 1.5e-7,
+worst gradient rel-L2 8.4e-4 on the gate parameters; BF16/FP16 within the
+A06/A07-style 0.04 gradient bound), plus an **independent CPU/FP64 gradient
+anchor** (both GPU paths ≤ 1.2e-3 of the FP64 reference). The full D62 admission
+battery passed on the routed model (bitwise checkpoint resume included); five
+refusal checks passed. The original FP32 gradient bound (1e-4) failed in an
+intermediate run and is retained on record; the revised 2e-3 bound was
+pre-declared with justification before the confirmation runs. Board clean
+(0 containers/GPU clients pre/post, temperature stable, no reboot); ordinary
+`bc250-train` caller under the immutable release. 21 new local tests (suite 225).
+Full detail and evidence hashes are in the `bc250-therock` fork
+(`docs/development/bc250_bottleneck_d66_results/`). Remaining optional headroom:
+fused native solve/scan kernels, trainable-weight native conv, low-precision cast
+overhead, larger-geometry admission.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

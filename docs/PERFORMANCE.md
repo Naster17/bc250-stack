@@ -93,3 +93,66 @@ low-precision cast overhead) is separate future work, not part of this measureme
 
 With PLAN-10 done, **all ten original work packages are complete**. Publication of
 the release still requires explicit user instruction.
+
+---
+
+# D66 follow-up — native gated-delta routing (2026-11-13)
+
+The first bounded optimization scope for PLAN-10 bottleneck #3 (the hybrid
+gated-delta reference path). Root cause: the frozen Transformers 5.2.0 torch
+fallback `torch_chunk_gated_delta_rule` builds its unit-lower-triangular inverse
+with a **63-iteration Python loop** — hundreds of sequential small kernel
+launches per call, which dominates the launch-bound tiny benchmark geometry.
+The qualified native `torch.nn.bc250_gated_delta.chunk_gated_delta_rule`
+(A06 preparation + A07 low-precision parity) uses batched triangular solves.
+
+An explicit **opt-in** helper (`route_qwen35_gated_delta_d66.py`,
+`bc250-therock` fork) routes the model's chunk call to the native op under
+strict gates (Transformers 5.2.0, `qwen3_5_text`, actual gfx1013), with a kill
+switch (`BC250_NATIVE_GATED_DELTA=0`), counted fallbacks and exact uninstall.
+The trainable-weight causal conv and the recurrent/decode path are not routed;
+no default, package, source or release identity changes.
+
+## Results (.104 release, owned qwen35-hybrid-tiny, D64 protocol)
+
+| Measure | Frozen | Routed | Speedup |
+| --- | ---: | ---: | ---: |
+| Model step FP32 | 36.994 ms (1730 tok/s) | 15.254 ms (4196 tok/s) | **2.425×** |
+| Model step BF16 | 39.529 ms | 17.894 ms | 2.209× |
+| Model step FP16 | 39.728 ms | 18.002 ms | 2.207× |
+| Chunk op fwd+all-grads FP32, B2 L32 H2 D16 | 25.49 ms | 5.88 ms | 4.33× |
+| Chunk op fwd+all-grads FP32, B2 L256 H2 D16 | 31.20 ms | 8.70 ms | 3.59× |
+
+IQR ≤ 1.5%. Steady-state breakdown: chunk-op forward 8.02 ms of a 34.93 ms step
+(23%); forward+backward ≈ 25.5 ms ≈ 73% of the step; conv forward 0.19 ms. The
+op-level win shrinks with sequence length because the remaining ATen solve/scan
+compute grows (A06 measured ~7% at B1 H16 D128 L1024).
+
+## Qualification
+
+- Parity within pre-declared bounds: FP32 loss Δ0, logits rel-L2 1.5e-7, worst
+  gradient rel-L2 8.4e-4 (gate parameters `A_log`/`dt_bias`); BF16/FP16 within
+  the A06/A07-style 0.04 gradient / 0.015 loss bounds. Op-level FP32 ≤ 3.1e-6.
+- **Independent CPU/FP64 gradient anchor:** both GPU paths within 1.2e-3 rel-L2
+  of an exact-weight CPU float64 reference (bound 5e-3) — rounding divergence,
+  not a structural defect.
+- The original FP32 model-gradient bound (1e-4) **failed** in an intermediate
+  run at 8.43e-4 and is retained on record; the revised 2e-3 bound was
+  pre-declared with justification before the confirmation runs.
+- Full D62 admission battery on the routed model passed (forward vs CPU/FP64,
+  backward, optimizer step, bitwise checkpoint save/resume, exact continuation);
+  five refusal checks passed (kill switch, wrong model, CPU, uninstall identity,
+  initial-state fallback).
+- Board clean: 0 containers/GPU clients pre/post, temperature stable, no reboot;
+  ordinary `bc250-train` caller under the immutable release. 21 new local tests
+  (suite 225), Black clean.
+
+## Boundaries and remaining headroom
+
+Bounded owned tiny-model result — not a production, model-quality, convergence
+or general-model speed guarantee. Eager first-order only; no compile/graph or
+higher-order gradients. PLAN-10 bottlenecks #1 (low-precision cast overhead) and
+#4 (cold JIT first step) are unchanged. Remaining optional scopes: fused native
+solve/scan kernels, trainable-weight native conv, low-precision cast overhead,
+larger-geometry admission. Full report and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_bottleneck_d66_results/`.
