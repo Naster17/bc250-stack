@@ -356,6 +356,66 @@ clean every phase (kernel-log/registry gates, nonce-acked boot guards, boot
 unchanged, 0 containers). Full detail and evidence hashes: `bc250-therock`
 fork, `docs/development/bc250_launch_reduction_d70_results/`.
 
+## D71 — GEMM efficiency for the LoRA shapes (optional extension)
+
+Completed 2026-11-13 on the .104 release (app environment, D67-pattern
+guardians). First bounded scope of D70's evidence-ranked #1 lever, reusing
+the qualified N32 method (private-handle `rocblas_gemm_ex_get_solutions`
+enumeration, CPU-double parity, canary guards, paired alternating timing).
+Measurement and qualification only — no preset deployment, no application
+source change, no user data.
+
+**Headline: the easy GEMM win does not exist on this stack.**
+
+- **Census:** 27,240 GEMM calls/update across 71 distinct layouts
+  (TorchDispatchMode, exact sizes/strides/dtypes).
+- **Solution sweep (40 mm/addmm layouts):** every FP16 layout has exactly
+  **2 admitted Tensile solutions** (contrast N32's BF16 case: 14/14/8);
+  best-vs-default paired ratios 0.96–1.05× — within noise. **Zero preset
+  winners.** All candidates pass the unchanged N32 parity contract.
+- **hipBLASLt is slower:** fresh-process AB/BA ratios 0.28–0.60× on the top
+  shapes; rocBLAS remains the right backend.
+- **Whole-step A/B:** reference 36.196 s (1.0008× the D69 reference),
+  candidate preset (release rows + 0 winners) 36.158 s (**1.001×**), final
+  loss **bit-identical** (Δ=0), finite gradients, no skipped steps, peak
+  6.16 GiB. The override mechanism is validated end-to-end but empty for FP16.
+- **Per-shape in-model profile** (one microbatch × grad_accum): GEMM
+  **32.8 s/update**, all-kernel **36.3 s/update ≈ the step** (GPU ~100% busy,
+  ~90% GEMM) — **D70's GEMM-bound attribution independently confirmed.**
+
+**Two corrections to the framing:** (1) the cost is the **large base-model
+projections** (`[1024,6144]@[6144,2048]` at 35 ms/call in-model, ~16 s/update),
+not the LoRA adapters (rank-128 A/B GEMMs are 0.25 ms/call, ~0.4 s/update);
+(2) isolated hot-cache fixtures understate the in-model cost ~4× (35 vs
+8.8 ms on the same logical GEMM) — the slowdown is memory/state-dependent
+(cold activations, locality, and/or the port's backward `fp16_alt_impl`
+flag, which the fixtures and override CSV do not exercise), **not a
+bad-solution choice**. Fixture-based solution tuning is not decision-grade
+for this workload.
+
+**Revised recommendation:** stop FP16 solution-selection tuning (exhausted).
+The tractable levers are now native depthwise causal conv (D70: 20× growth),
+graph-capture integration (~10% non-GEMM, D70 proven bitwise-exact), and the
+D68 headroom; a GEMM breakthrough requires dedicated microarchitectural R&D
+(resolve the in-model-vs-fixture gap, then memory-traffic reduction / fusion).
+
+**Incident and hardening:** a full-update `record_shapes` profile thrashed
+the host; the orchestrator's session timeout closed the SSH connection and
+SIGHUP-killed the guardian before it wrote the boot-guard ack (ack is written
+only in cleanup), and the boot-guard child died with it, so the designed
+emergency reboot did not fire; an orphaned container held ~10 GB. The user
+power-cycled .104 (r2 kernel and release intact, no data loss, nothing to
+roll back; the deployment host was untouched). Hardened: one-microbatch
+profile window, a `timeout 430` podman backstop so a container can never
+outlive a killed guardian, and a longer orchestrator session; the resource
+envelope is unchanged. Defects found and fixed are retained in the report
+(census config staging, SystemExit capture, PosixPath JSON, `--mount-ro`
+syntax, profiler OOM → stream aggregation, audit schema). 22 new local tests
+(suite 327). No application source/entry point/output/checkpoint change, no
+user data, no default/package/release change. Full detail and evidence
+hashes: `bc250-therock` fork,
+`docs/development/bc250_gemm_efficiency_d71_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
