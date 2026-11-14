@@ -468,6 +468,48 @@ registry unchanged, no foreign containers, all boot-guards acknowledged, idle
 post-run; the deployment host was untouched. Full detail and evidence hashes:
 `bc250-therock` fork, `docs/development/bc250_gemm_gap_d72_results/`.
 
+## PLAN2-01 — production-readiness stability soak (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, stock 2000 MHz). First item
+of the forward PLAN2 capability-expansion plan. **Result: PASSED** — the stack is
+reliable for sustained multi-hour LoRA training with exact checkpoint/resume.
+
+**20 chained bounded segments · 200 optimizer updates · 2.073 h accumulated ·
+all 9 reliability checks green.** Global steps contiguous 1→200 (exact resume
+across every segment boundary), per-update drift 0.9992, cross-segment memory
+ratio 1.000 (no leak), temperature ≤65.85 °C inter-segment (≤90 °C bound), mean
+update 37.31 s, every update finite + non-skipped, loss 2.936→2.025 (finite,
+decreasing), adapter changed each segment, 20/20 guardians passed, boot ID
+unchanged, kernel log + distributed registry clean, no foreign containers; the
+deployment host was untouched.
+
+Method: a multi-hour run accumulated as many ≤460 s guardian segments joined by
+exact checkpoint/resume (cumulative `max_steps`, 10 updates/segment), which also
+validates restart reliability. Authorized lora-smoke app, single-board
+Qwen3.5-2B rank-128 FP16 LoRA, eager attention + gradient checkpointing, global
+batch 4, owned hash-verified synthetic data; D71-hardened guardians (SH lock,
+nonce-acked boot-guard, `timeout 430` backstop) with durable host state for
+resume. One pre-declared refinement: the kernel-log identity check ignores only
+benign governor `Unsupported clock type` clock-query noise; real GPU faults still
+fail (tested). The original qualified guardian is otherwise unchanged.
+
+Incident journey (documented in the evidence archive): the first attempt's
+segment 2 spontaneously rebooted the host. Read-only root cause: a persistent
+**3500 MHz SMU overclock** (applied at boot) plus **`amdgpu.gpu_recovery=0`** →
+GPU hang under load → hardware/firmware reset. Ruled out the boot-guard (deadline
+not reached), the SP5100 watchdog (`bootstatus=0`), and kernel panic (no `panic=`).
+This is a **host-level configuration issue, not a stack defect**. The user
+stabilized the host to stock clocks; benign governor kernel noise was handled by
+the pre-declared filter; a non-root GPU monitor (`amdgpu_top`) was closed to free
+the device; then the clean 2 h run completed. No host governor/clock/watchdog/
+kernel was modified by this work. 27 new local tests (suite 377). No
+default/package/release change.
+
+The production-readiness gate is met **conditional on a stable host** (stock
+clocks; the aggressive overclock is outside the qualified envelope). Full detail
+and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_soak_plan2_01_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
