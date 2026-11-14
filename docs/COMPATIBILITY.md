@@ -54,6 +54,10 @@ Authoritative installed set, read from the release
 - Qualified scope: owned GPT2 causal-LM (tied head), FP32/BF16/FP16 FSDP policies,
   frozen-base + native/PEFT LoRA adapters, non-reentrant activation checkpointing,
   bitwise checkpoint save/resume. Evidence: D26/D27/D28/D29/D30/D31 reports.
+  **FP16 PEFT** (frozen base + LoRA, FP16 autocast + FP32 master + GradScaler) is
+  qualified on an owned fixture by PLAN2-07 (12/12 checks, bitwise resume); the
+  distributed frozen FSDP PEFT helpers remain FP32/BF16. Evidence:
+  `bc250_peft_fp16_plan2_07_results/`.
 - The Trainer helpers **pin** these versions and refuse on mismatch; a source or
   package change requires helper requalification (see §6).
 

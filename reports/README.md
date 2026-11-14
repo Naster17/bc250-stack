@@ -799,6 +799,65 @@ future admissions. Full detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_admission_plan2_06_results/`; compatibility matrix updated
 in `docs/COMPATIBILITY.md`.
 
+## PLAN2-07 — FP16 PEFT qualification (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+peft 0.21.2 / transformers 5.22.1 from the owned env, stock ≤2000 MHz). Seventh
+and final item of the forward PLAN2 plan. **Result: PASSED** — FP16 PEFT qualified
+on an owned fixture mirroring the frozen-helper precision contracts. **The frozen
+FSDP helpers (D28/D30/D31) are untouched** (requalification rules respected); **no
+app/source/default/package/release change** (pytorch series stays 23 patches).
+
+Gap closed: the base `BC250FSDPTrainer` FP16 path requires all-trainable params
+(no PEFT/frozen), and the PEFT helpers are FP32 (D28) / BF16 (D30/D31, refuses
+FP16) — so FP16 PEFT (frozen base + trainable LoRA, FP16 working + FP32 master +
+GradScaler) had no qualified path.
+
+**12/12 checks** on the D28 owned identity (GPT2-tiny = 21280 frozen base params +
+real peft LoRA rank 4 / alpha 8 / zero-init B on the 8 Conv1D projections =
+3072 trainable adapter params):
+
+- Precision contract: FP32 master/frozen/reduce/optimizer-state, FP16 autocast
+  working, GradScaler present.
+- Forward vs independent CPU-FP64: relative **0.0** (bitwise).
+- Adapter gradients vs CPU-FP64: global relative **7.3e-04**, worst per-parameter
+  **9.3e-04** (bounds 0.02 / 0.03, the D25/D26/D30 gates).
+- Frozen base: no gradients; FP16-vs-FP32 loss relative 0.0; root grad-norm clip
+  vs CPU relative 0.0 (bound 1e-5).
+- GradScaler inf/nan safety: a forced inf gradient skips the optimizer step and
+  halves the scale (65536 → 32768).
+- Multi-update (8) AdamW: loss 4.6025 → 4.5601 (decreasing), frozen base bitwise
+  unchanged.
+- Full save (adapter + optimizer + scaler + RNG) → fresh restore → **bitwise**
+  3-step resumed continuation (loss sequence + adapter/optimizer fingerprint).
+
+FP16-specific findings: a GradScaler is **required** for FP16 (unlike BF16, which
+uses no scaler); FP32 master weights/state avoid the pure-FP16 AdamW `exp_avg_sq`
+underflow found in PLAN2-02; FP16 (10 mantissa bits) is at least as tight as the
+qualified BF16 path. This is a single-process owned-fixture proof of the FP16
+contract — not a distributed FSDP FP16 PEFT trainer (separate future scope); no
+model-quality/convergence claim.
+
+Attempt journey (harness fixes, retained): a rel-L2 device mismatch and a
+GradScaler test that injected inf after `unscale_` (GradScaler computes
+`found_inf` during `unscale_`); both fixed, no bound relaxed. 11 new local tests
+(suite 489). Guardian = the qualified PLAN2-01..06 envelope plus a stock-clock
+gate; boot unchanged, kernel/registry clean, 0 foreign containers, boards idle
+pre/post, deployment host untouched. Full detail and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_peft_fp16_plan2_07_results/`;
+compatibility matrix updated in `docs/COMPATIBILITY.md`.
+
+## PLAN2 forward plan — complete
+
+With PLAN2-07, **all seven forward-plan items (PLAN2-01…07) are complete**
+(2026-11-14): stability soak, NF4/QLoRA, native sparse factorization, attention
+speed, compile/graph-capture, broader model admission, and FP16 PEFT. Each was
+admitted on owned fixtures under the qualified guardian with pre-declared bounds,
+no default/source/package/release change (pytorch series stays 23 patches), and
+full evidence. Any further work is optional backlog (see the workspace
+`BC250_REMAINING_PLAN.md` / `PLAN2.md` scope notes) and needs a concrete need plus
+fresh approval.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

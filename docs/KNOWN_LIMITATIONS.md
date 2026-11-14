@@ -50,8 +50,12 @@ the honest scope. The machine-readable form is
   PLAN2-02: a memory win, not a compute win, on RDNA1; first derivatives, frozen
   base, dims ≤4096, no model-quality claim). Packed INT4 remains hardware-blocked
   (no MFMA on RDNA1); TorchAO/bitsandbytes are not installed.
-- Qualified training policies are **FP32/BF16** (per D26–D31); FP16 PEFT and
-  broader recipes remain separate qualification work.
+- Qualified training policies are **FP32/BF16** (per D26–D31). **FP16 PEFT is now
+  qualified** (PLAN2-07) on an owned GPT2-tiny + peft LoRA fixture: FP16 autocast
+  working + FP32 master/frozen/reduce + GradScaler, 12/12 checks, bitwise resume.
+  This is a single-process owned-fixture proof of the FP16 contract; the
+  distributed frozen FSDP helpers remain FP32/BF16 (an FSDP FP16 PEFT trainer and
+  broader recipes remain separate future work).
 
 ## Performance
 
