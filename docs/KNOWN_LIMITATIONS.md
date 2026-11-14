@@ -23,8 +23,10 @@ the honest scope. The machine-readable form is
   differs from the bounded dense-LU fallback.
 - **Math SDPA qualified**; tiled/hybrid attention has dropout/compile/graph
   boundaries.
-- **W8 quantization exists**; NF4 / packed INT4 / full QLoRA are separate
-  unqualified feasibility work.
+- **W8 and native NF4/QLoRA quantization exist** (NF4 is explicit opt-in,
+  PLAN2-02: a memory win, not a compute win, on RDNA1; first derivatives, frozen
+  base, dims ≤4096, no model-quality claim). Packed INT4 remains hardware-blocked
+  (no MFMA on RDNA1); TorchAO/bitsandbytes are not installed.
 - Qualified training policies are **FP32/BF16** (per D26–D31); FP16 PEFT and
   broader recipes remain separate qualification work.
 

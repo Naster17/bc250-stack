@@ -94,9 +94,10 @@ gfx1013 training surface:
   lifetime through peer agent exit.
 
 Attention runs through math/eager SDPA by default, with an opt-in tiled/hybrid
-path; quantization is a frozen **W8** route (no NF4/packed-INT4/full-QLoRA). The
-design rule throughout: **explicit opt-in, refuse rather than silently fall
-back.**
+path; quantization has a frozen **W8** route and an opt-in native **NF4/QLoRA**
+route (PLAN2-02: dequantize-to-FP16 + the qualified GEMM, a memory win on RDNA1;
+packed INT4 stays hardware-blocked, no MFMA). The design rule throughout:
+**explicit opt-in, refuse rather than silently fall back.**
 
 ## Layer 6 — Consumers
 

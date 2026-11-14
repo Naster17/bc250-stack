@@ -122,7 +122,8 @@ GPU requires an explicit registered execution provider (`bc250-ort`).
 | Conv (MIOpen) | qualified | PLAN-02 FP16 FP32-accumulation repair; versioned cache |
 | Gated-delta | bounded | A06 owned fixtures; not a general FLA guarantee |
 | Quantization — W8 | frozen | `bc250_quant 0.1.0`, explicit opt-in, frozen layouts |
-| Quantization — NF4 / packed INT4 / full QLoRA | absent/unqualified | TorchAO/bitsandbytes not installed; native direct backward refuses |
+| Quantization — NF4 / QLoRA | bounded (PLAN2-02) | native dequantize-to-FP16 opt-in; 70/70 checks + D62 admission; ~3.56× weight-memory; first derivatives, frozen base, dims ≤4096; no model-quality claim |
+| Quantization — packed INT4 | hardware-blocked | native CDNA2/MFMA path absent on RDNA1; TorchAO/bitsandbytes not installed |
 | Compiler (torch.compile) | bounded | dense/gated/CNN/batchnorm fixtures (D59); eager is the reference |
 
 A fallback can be correct yet slow. Warning suppression is not a backend fix.

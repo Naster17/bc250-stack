@@ -510,6 +510,62 @@ clocks; the aggressive overclock is outside the qualified envelope). Full detail
 and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_soak_plan2_01_results/`.
 
+## PLAN2-02 — native NF4 / QLoRA quantization (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+stock ≤2000 MHz). Second item of the forward PLAN2 plan. **Result: PASSED** — a
+native, opt-in 4-bit NormalFloat (NF4) weight-only recipe with a qualified
+forward/backward, a QLoRA composite, a measured memory reduction and D62
+admission. **70/70 GPU qualification checks + D62 routes-only admission passed.**
+
+Feasibility decision (read-only first): bitsandbytes / TorchAO are absent, and the
+native packed-INT4 path (`_weight_int4pack_mm` / `_convert_weight_to_int4pack`) is
+**hardware-blocked** on gfx1013 — it requires a CDNA2 architecture gate *and* MFMA
+matrix instructions that RDNA1 physically lacks (plus BF16-only input). The
+admitted route is therefore **native NF4 via dequantize-to-FP16 + the qualified
+rocBLAS GEMM**: a pure-Python helper mirroring the proven frozen-W8 pattern, with
+**no new native kernel and no Torch source edit** (the pytorch patch series stays
+at 23). NF4 is a **memory win, not a compute win**, on RDNA1 (no INT4 matrix
+cores).
+
+Recipe: the canonical 16-level NormalFloat-4 codebook, block-wise absmax
+quantization (block sizes 16/32/64/128/256, default 64), two 4-bit codes per byte,
+FP32 block scales, nearest level via sorted midpoints. A custom autograd function
+saves the **compact codes/scales** (no floating base persisted) and recomputes the
+dequantized weight for the input first derivative; `once_differentiable`, frozen
+base. `FrozenNF4Linear` (strict versioned state, CPU storage/load, gfx1013
+forward) and `QLoRALinear` (frozen NF4 base + trainable adapter). An independent
+pure-Python scalar reference shares only the codebook constants; this is an
+NF4-compatible recipe qualified against a CPU-double reference, **not** a
+bitsandbytes bit-exactness claim.
+
+Measured: persistent weight bytes **0.281× FP16 (~3.56× smaller)**; peak allocated
+memory **0.916×** on a 24-layer owned fixture (the persistent saving dominates as
+model size grows; a tiny fixture's eager dequant transient can mask the peak win).
+Pack code-match 1.000, dequant rel-L2 3.8e-08; compute parity max rel-L2 FP16
+0.00045 / BF16 0.00353 / FP32 2.9e-07 (within pre-declared bounds). QLoRA 16 BF16
+AdamW steps: loss 0.00560→0.00188 (finite, decreasing), adapter changed, base
+bitwise frozen. 14 refusals plus the preserved native INT4-conversion /
+int8-backward boundaries. D62 admission fired the new `quant-nf4` route alongside
+attention / gated-delta / conv / W8.
+
+Attempt journey (test-harness fixes, not stack defects; retained as evidence): an
+early code-match check compared indices to packed bytes, and an unfrozen QLoRA
+source was correctly refused; then FP16 AdamW `exp_avg_sq` underflow diverged to
+NaN (fixed with BF16 adapters, the QLoRA-standard stable choice) and a tiny memory
+fixture masked the win (fixed with a memory-lean dequant + larger fixture); then
+70/70. No pre-declared bound was relaxed. 34 new local tests (suite 413). Guardian
+= the qualified PLAN2-01 envelope plus a stock-clock gate (`pp_dpm_sclk` ceiling
+≤2000 MHz). No default/package/release/source change; not installed into any
+image; the deployment host was untouched.
+
+Boundaries: first derivatives only, frozen base, operand/work bounds (dims ≤4096;
+wider real-model projections need a separate admission); no bitsandbytes/TorchAO
+installation, no packed-INT4 enablement, and **no model-quality/perplexity claim**
+(the ~9% recipe rel-Frobenius on Gaussian weights is the 4-bit quantization error).
+Full detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_nf4_plan2_02_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
