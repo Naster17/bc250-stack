@@ -858,6 +858,52 @@ full evidence. Any further work is optional backlog (see the workspace
 `BC250_REMAINING_PLAN.md` / `PLAN2.md` scope notes) and needs a concrete need plus
 fresh approval.
 
+## D73 — native causal-conv route for Transformers 5.22.1 (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+transformers 5.22.1 from the owned app env, stock ≤2000 MHz). First post-PLAN2
+backlog lever (the D70 conv term). **Result: PASSED** — the 5.22.1
+`causal_conv1d_fn` MIOpen reference (depthwise `F.conv1d(padding=K-1)` + truncate
++ SiLU; the conv cost D70 measured growing 20.3× from seq 1024→4096) is routed to
+the native conv via an opt-in module-scope route. **No Torch
+source/default/package/release change** (pytorch series stays 23 patches).
+
+**Key finding: no kernel development was needed.** The installed release already
+ships the A05-qualified **trainable-weight** native conv
+`torch.nn.bc250_training_ops.causal_conv` (scalar Triton, FP32 accumulation,
+deterministic partial-reduction dw/db). The earlier "native conv requires frozen
+weights" note referred to a separate overlay helper, not the installed module.
+The missing piece was only the 5.22.1 route (deferred by the gated-delta work).
+
+**Layout finding (root-caused a regression):** the app's conv input is
+`(B,L,C).transpose(1,2)` — a strided view that both MIOpen and the scalar kernel
+read ~4× slower (uncoalesced). The naive route was a regression (0.981× /
+0.953×); a value-identical contiguous copy before the native call (native
+strided/contiguous outputs are bitwise equal) turns it into a modest win.
+
+**Qualification 80/80:** op parity (y/dx/dw/db) vs the 5.22.1 reference at the app
+conv shape (C=6144, K=4) up to L4096, FP32/BF16/FP16 + autocast, frozen and
+trainable; CPU-FP64 anchor; tiny-hybrid model parity (full-trainable, frozen-conv,
+FP16 checkpointing); 11 refusals; installed module byte-unchanged.
+
+**App-level LoRA step** (owned synthetic data, rank-128 all-linear FP16 eager +
+checkpointing; 864/144 native conv calls, zero fallbacks, exact uninstall):
+
+| Case | Reference | Conv route | Conv + fused gated-delta |
+| --- | ---: | ---: | ---: |
+| 1024 (steady) | 36.291 s | 35.774 s (**1.0145×**) | 35.293 s (**1.0283×**) |
+| 4096 (cold) | 326.107 s | 320.113 s (**1.0187×**) | — |
+
+The win is bounded by conv's ~1–3% share of the step and grows with sequence
+length; the dominant long-sequence cost remains the GEMM systemic in-model gap
+(D72), not conv. Remaining optional headroom: a layout-aware kernel reading the
+`(B,L,C)` storage directly would avoid the transpose copy (~4.4× op-level
+potential at L4096). 26 new local tests (suite 515). Guardian = the qualified
+PLAN2 envelope plus a stock-clock gate; boot unchanged, kernel/registry clean,
+0 foreign containers, boards idle pre/post, deployment host untouched. Full
+detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_causal_conv_d73_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

@@ -224,6 +224,59 @@ Model step vs frozen at seq 256: 2.60/2.38/2.35× (D66 route alone: 2.26/2.04/
 Bounded owned result — not a production or general-model speed guarantee.
 Eager first-order only; opt-in, no default/release change. Remaining optional
 scopes: finer per-geometry selectivity (~5% at four chunks where scan-only
-beats the combined path), trainable-weight native conv, low-precision cast
-overhead, larger-geometry admission. Full report and evidence hashes:
-`bc250-therock` fork, `docs/development/bc250_gated_delta_d68_results/`.
+beats the combined path), trainable-weight native conv (done in D73, below),
+low-precision cast overhead, larger-geometry admission. Full report and evidence
+hashes: `bc250-therock` fork, `docs/development/bc250_gated_delta_d68_results/`.
+
+---
+
+# D73 follow-up — native causal-conv route (2026-11-14)
+
+The conv term D70 measured growing 20.3× from seq 1024→4096 (0.44 → 8.95 s/update)
+is the depthwise causal conv (`causal_conv1d_fn`) the hybrid gated-delta mixer
+runs before the chunk op. With no `causal_conv1d` package, the Transformers
+5.22.1 reference is `F.conv1d(padding=K-1)` + truncate + SiLU through MIOpen.
+D73 routes it to the **already-installed A05-qualified trainable-weight native
+conv** (`torch.nn.bc250_training_ops.causal_conv`, scalar Triton, FP32
+accumulation, deterministic partial-reduction dw/db). **No kernel development or
+Torch source change was needed** — the gap was only the 5.22.1 module-scope route
+(opt-in, kill switch, counted fallbacks, exact uninstall; decode path not routed).
+
+**Layout finding:** the app's conv input is `(B,L,C).transpose(1,2)` — a strided
+view both MIOpen and the scalar kernel read ~4× slower (uncoalesced). The naive
+route regressed (0.981× / 0.953×); a value-identical contiguous copy before the
+native call (native strided/contiguous outputs bitwise equal) fixes it.
+
+## Results (.104 release, owned LoRA benchmark)
+
+| Case | Reference | Conv route | Conv + D68 fused delta |
+| --- | ---: | ---: | ---: |
+| 1024 (steady s/update) | 36.291 | 35.774 (**1.0145×**) | 35.293 (**1.0283×**) |
+| 4096 (cold s/update) | 326.107 | 320.113 (**1.0187×**) | — |
+
+Op-level (fwd+bwd, app shape C=6144 K4 L4096, FP16): strided reference 263.6 ms →
+native+contiguous 197.7 ms (1.33×); native contiguous alone 59.3 ms. The step win
+is bounded by conv's ~1–3% share and grows with sequence length; the dominant
+long-sequence cost remains the GEMM systemic in-model gap (D72), not conv.
+
+## Qualification
+
+- **80/80** checks: op parity y/dx/dw/db vs the 5.22.1 reference at 6 geometries
+  incl the app shape up to L4096, FP32/BF16/FP16 + autocast, frozen + trainable
+  (worst FP32 2.4e-7 / FP16 3.7e-4 / BF16 2.9e-3 rel-L2); CPU-FP64 anchor;
+  tiny-hybrid model parity (full-trainable, frozen-conv, FP16 checkpointing;
+  worst FP32 gradient 1.74e-3 ≤ 2e-3); 11 refusals; installed module
+  byte-unchanged (identity verified pre/post).
+- Layout diagnostic 4/4 (strided/contiguous consistency + bitwise native
+  equivalence). 26 new local tests (suite 515), Black clean.
+- Board clean pre/post; boot unchanged; kernel/registry clean; 0 foreign
+  containers; deployment host untouched; no default/package/release change.
+
+## Boundaries and remaining headroom
+
+Bounded owned result — not a production or general-model speed guarantee. Eager
+first-order only; opt-in. Remaining optional: a layout-aware kernel reading the
+`(B,L,C)` storage directly (channel blocks per timestep, coalesced) would avoid
+the transpose copy (~4.4× op-level potential at L4096, ~2% step growing with L) —
+additive Torch-source kernel development. Full report and evidence hashes:
+`bc250-therock` fork, `docs/development/bc250_causal_conv_d73_results/`.
