@@ -747,6 +747,58 @@ clean, 0 foreign containers, boards idle pre/post, deployment host untouched.
 Full detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_compile_graph_plan2_05_results/`.
 
+## PLAN2-06 — broader model admission (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+stock ≤2000 MHz). Sixth item of the forward PLAN2 plan. **Result: PASSED** —
+admitted owned pure-torch **non-LM architectures** through the D62-style battery.
+**No new dependency** (diffusers is absent from the release), **no app/source/
+default/package/release change** (pytorch series stays 23 patches); the D62
+fixture itself is untouched (its qualified helpers are imported).
+
+**6 model/dtype admissions, 60/60 checks:**
+
+| Model (owned) | Params | Dtype | Forward rel-L2 vs CPU-FP64 | Routes |
+| --- | ---: | --- | ---: | --- |
+| unet2d-tiny | 109171 | FP32 | 0.0 (bitwise) | conv (MIOpen), attention (SDPA) |
+| unet2d-tiny | 109171 | BF16 autocast | 3.3e-04 | conv, attention |
+| rnn-tiny | 4736 | FP32 | 0.0 (bitwise) | recurrent |
+| lstm-tiny | 9536 | FP32 | 0.0 (bitwise) | recurrent |
+| lstm-tiny | 9536 | BF16 autocast | 5.0e-04 | recurrent |
+| gru-tiny | 7936 | FP32 | 0.0 (bitwise) | recurrent |
+
+Every admission passed the full battery: load → forward vs an independent
+CPU-FP64 reference (D62 tolerance 0.02 FP32 / 0.06 BF16, finite) → backward (all
+trainable grads finite, ≥1 nonzero) → AdamW step changes the bitwise fingerprint
+→ bitwise save/resume (restored == pre-continuation) → exact 3-step resumed
+continuation (loss sequence + final fingerprint == live reference). The native
+recurrent kernels are deterministic under `cudnn.deterministic=True`.
+
+The **UNet2D** is a diffusion-style noise-prediction net (Conv2d + GroupNorm +
+SiLU + down/up-sampling + mid non-causal SDPA attention + skips, MSE objective)
+exercising the qualified MIOpen conv + SDPA attention routes — **not** a full
+diffusion pipeline (no diffusers/sampler/scheduler claim). The **RNN/LSTM/GRU**
+are next-token LMs (Embedding + torch-native recurrent cell + Linear +
+cross-entropy) exercising the native recurrent kernels. All models are
+random-init from config; no weights fetched; the owned-import guard passed.
+
+Method: `admission_plan2_06/admit.py` generalizes the D62 battery by
+parameterizing loss/inputs per architecture (the D62 battery is causal-LM
+specific), importing the qualified D62 helpers (state_bytes, route_status,
+summarize, new_report, record_versions, owned_import_guard). Each model/dtype ran
+as its own bounded guardian child. Attempt journey: ad-r1 crashed on a
+dtype-string bug (fixed); ad-r2…r7 passed all six; no bound relaxed. 11 new local
+tests (suite 478). Guardian = the qualified PLAN2-01..05 envelope plus a
+stock-clock gate; boot unchanged, kernel/registry clean, 0 foreign containers,
+boards idle pre/post, deployment host untouched.
+
+Admission is bounded validation, not universal correctness or a model-quality
+proof; forward support alone is not a training claim. Broader architectures
+(ViT/ConvNeXt), real diffusion pipelines and larger geometries remain separate
+future admissions. Full detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_admission_plan2_06_results/`; compatibility matrix updated
+in `docs/COMPATIBILITY.md`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

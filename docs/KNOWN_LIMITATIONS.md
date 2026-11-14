@@ -19,6 +19,13 @@ the honest scope. The machine-readable form is
 ## Software subsets
 
 - Scalar backends have documented API/type/operator subsets.
+- **Model admission is per-architecture, bounded evidence** — not a universal
+  support claim. Admitted: causal LMs (gpt2/qwen3/qwen3.5-hybrid, D62) plus owned
+  pure-torch UNet2D (diffusion-style noise-prediction) and RNN/LSTM/GRU
+  (PLAN2-06), each through load → forward vs CPU/FP64 → backward → optimizer →
+  bitwise resume. diffusers is absent (the UNet is owned pure-torch, not a full
+  diffusion pipeline); ViT/ConvNeXt, real diffusion pipelines and larger
+  geometries remain separate future admissions.
 - Production nonsymmetric eig uses host LAPACK (retained; the native small-Schur
   prototype is slower for small orders, N2.6). **Native ILU(0)/IC(0) sparse
   factorization + preconditioned solve now exists** (PLAN2-03, opt-in, machine

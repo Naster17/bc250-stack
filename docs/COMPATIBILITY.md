@@ -176,6 +176,37 @@ Notes:
 - These are owned random-init configs, not the pretrained Qwen3.5-2B application
   model; admission establishes the architecture/route path, not model quality.
 
+### PLAN2-06 broader admission records (non-LM architectures)
+
+PLAN2-06 (2026-11-14, idle .104 release, torch 2.13.0a0+gfx1013,
+`gfx1013:xnack-`) extended admission to owned **pure-torch non-LM** architectures
+via `admission_plan2_06/admit.py`, which generalizes the D62 battery (imports the
+qualified D62 helpers; `admit_model_d62.py` untouched). **No new dependency** —
+diffusers is absent, so the UNet is owned pure-torch. Every model passed the full
+battery (load → forward vs CPU/FP64 → finite/nonzero backward → optimizer step →
+bitwise save/resume → exact resumed continuation). 6 admissions, 60/60 checks.
+Evidence: `kernel/artifacts/admission-plan2-06/`.
+
+| Model (owned config) | dtype | Forward rel. err | Resume | Routes fired | Evidence |
+| --- | --- | --- | --- | --- | --- |
+| unet2d-tiny (109171 params) | fp32 | 0.0 | exact | conv (MIOpen), attention (SDPA) | admit-ad-r2.json |
+| unet2d-tiny | bf16 autocast | 3.3e-04 | exact | conv (MIOpen), attention (SDPA) | admit-ad-r3.json |
+| rnn-tiny (4736 params) | fp32 | 0.0 | exact | recurrent | admit-ad-r4.json |
+| lstm-tiny (9536 params) | fp32 | 0.0 | exact | recurrent | admit-ad-r5.json |
+| lstm-tiny | bf16 autocast | 5.0e-04 | exact | recurrent | admit-ad-r6.json |
+| gru-tiny (7936 params) | fp32 | 0.0 | exact | recurrent | admit-ad-r7.json |
+
+Notes:
+- The UNet is a **diffusion-style noise-prediction** net (Conv2d + GroupNorm +
+  SiLU + down/up-sampling + mid non-causal SDPA attention + skips, MSE objective),
+  **not** a full diffusion pipeline (no diffusers/sampler/scheduler claim).
+- RNN/LSTM/GRU are next-token LMs (Embedding + torch-native recurrent cell +
+  Linear + cross-entropy); the native recurrent kernels are deterministic under
+  `cudnn.deterministic=True` (exact resume held).
+- bf16 runs use autocast with FP32 masters; the CPU/FP64 reference is full
+  precision. Owned random-init configs; admission establishes the
+  architecture/route path, not model quality.
+
 ## 6. Requalification rules
 
 - A native Torch/ROCm **source change** requires requalification of the affected
