@@ -124,6 +124,8 @@ GPU requires an explicit registered execution provider (`bc250-ort`).
 | Quantization — W8 | frozen | `bc250_quant 0.1.0`, explicit opt-in, frozen layouts |
 | Quantization — NF4 / QLoRA | bounded (PLAN2-02) | native dequantize-to-FP16 opt-in; 70/70 checks + D62 admission; ~3.56× weight-memory; first derivatives, frozen base, dims ≤4096; no model-quality claim |
 | Quantization — packed INT4 | hardware-blocked | native CDNA2/MFMA path absent on RDNA1; TorchAO/bitsandbytes not installed |
+| Sparse factorization — ILU(0)/IC(0) + preconditioned solve | bounded (PLAN2-03) | native hipSPARSE csrilu02/csric02 + csrsv2 opt-in; 42/42 checks at machine precision; RHS gradient; orders ≤256; rocSPARSE has no general direct sparse LU |
+| Nonsymmetric eig | host-LAPACK | production default retained (N2.2); native small-Schur slower for small orders (N2.6); larger/ill-conditioned separate |
 | Compiler (torch.compile) | bounded | dense/gated/CNN/batchnorm fixtures (D59); eager is the reference |
 
 A fallback can be correct yet slow. Warning suppression is not a backend fix.

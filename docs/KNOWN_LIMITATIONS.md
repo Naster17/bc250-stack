@@ -19,8 +19,11 @@ the honest scope. The machine-readable form is
 ## Software subsets
 
 - Scalar backends have documented API/type/operator subsets.
-- Production nonsymmetric eig uses host LAPACK; scalable sparse factorization
-  differs from the bounded dense-LU fallback.
+- Production nonsymmetric eig uses host LAPACK (retained; the native small-Schur
+  prototype is slower for small orders, N2.6). **Native ILU(0)/IC(0) sparse
+  factorization + preconditioned solve now exists** (PLAN2-03, opt-in, machine
+  precision); rocSPARSE has no general direct sparse LU/Cholesky, and extreme
+  conditioning/larger orders remain separate from the bounded dense-LU fallback.
 - **Math SDPA qualified**; tiled/hybrid attention has dropout/compile/graph
   boundaries.
 - **W8 and native NF4/QLoRA quantization exist** (NF4 is explicit opt-in,

@@ -566,6 +566,66 @@ installation, no packed-INT4 enablement, and **no model-quality/perplexity claim
 Full detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_nf4_plan2_02_results/`.
 
+## PLAN2-03 — native sparse factorization + nonsymmetric-eig disposition (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+stock ≤2000 MHz). Third item of the forward PLAN2 plan. **Result: PASSED** —
+native general-CSR ILU(0)/IC(0) sparse factorization with a qualified
+preconditioned iterative solve and RHS first gradient, essentially at machine
+precision. **42/42 GPU qualification checks.** Nonsymmetric eig retains the
+qualified host-LAPACK default (documented decision, no rework).
+
+Feasibility decision (read-only, user-confirmed): **rocSPARSE has no general
+*direct* sparse LU/Cholesky** on any architecture. The native options are
+ILU(0)/IC(0) preconditioners (`csrilu0`/`csric0`, general CSR, **wave32-aware** so
+gfx1013-feasible — unlike the MFMA-blocked packed INT4) and banded direct
+`gtsv`/`gpsv`. The admitted subset is **ILU(0)/IC(0) + a bounded preconditioned
+solve** — the scalable native alternative to the B02.1 dense-LU fallback (which
+densifies and does not scale). The active-release `libhipsparse` exports
+`csrilu02`/`csric02`/`csrsv2` + the Info/zero-pivot APIs (confirmed by `nm -D`).
+The pinned general Torch sparse-solve API rejects ROCm, so this is a
+**private-handle ctypes hipSPARSE path** reusing the N2.13 pattern — **no native
+rebuild, no Torch/library source edit.**
+
+Method: strict no-fill ILU(0) (IKJ) / IC(0) with numeric boost disabled and zero
+pivot reported (never silently perturbed), against an independent pure-Python CPU
+reference (same algorithms, forward/back substitution, dense Gaussian-elimination
+oracle, CSR transpose). The ILU factors split into unit-lower L and upper U; the
+preconditioner M⁻¹ = U⁻¹L⁻¹ is applied with native `csrsv2` (analysis is
+trans-specific; the adjoint uses separate TRANSPOSE-analyzed solvers) inside an
+outer Richardson iteration. The RHS first gradient (dL/db = A⁻ᵀ dL/dx) uses the
+adjoint preconditioner M⁻ᵀ = L⁻ᵀU⁻ᵀ.
+
+Measured (worst case): ILU(0) factor rel-L2 FP32 1.27e-07 / FP64 9.7e-18; IC(0)
+FP32 1.64e-08 / FP64 0.0; `csrsv2` lower/upper ~1e-16; preconditioned-solve
+relative residual FP32 8.2e-08 / FP64 1.4e-16; solution rel-L2 FP64 4.2e-16; RHS
+gradient FP32 3.9e-08 / FP64 2.9e-16 — all far within pre-declared bounds.
+Dense-pattern ILU(0) reconstructs A exactly; zero/singular pivot matches the CPU
+reference; 7 refusals pass.
+
+Nonsymmetric-eig disposition (recorded, no implementation): production eig stays
+**host-LAPACK** (N2.2). The extensive native small-Schur prototype (N2.3–N2.12)
+was measured **slower than host LAPACK for small matrices** (N2.6: host ~0.2–0.4 ms
+vs native ~3.75–11.8 ms), and the practical review retains host-LAPACK and
+deprioritizes tiny-eig optimization. Larger/ill-conditioned native eig remains a
+separate deep scope.
+
+Attempt journey (harness/API fixes, not stack defects; retained): a staging path
+bug; classic hipSPARSE naming (`hipsparseCreate`/`Destroy`, not `*Handle`);
+factorization 27/27; `csrsv2` trans-specific analysis (TRANSPOSE solve after a
+NON_TRANSPOSE analysis → status 3) fixed with TRANSPOSE-analyzed adjoint solvers
+plus a corrected singular fixture; then 42/42. No pre-declared bound relaxed. 15
+new local tests (suite 428). Guardian = the qualified PLAN2-01/02 envelope plus a
+stock-clock gate. No default/package/release/source change; not installed into any
+image; the deployment host was untouched.
+
+Boundaries: bounded owned fixtures (orders ≤256, FP32/FP64, well-conditioned);
+**no general direct sparse LU/Cholesky claim**; extreme conditioning, hard-spectra
+convergence contracts, larger orders, complex dtypes, compile/graph integration
+and performance tuning are separate; first derivatives only (RHS gradient); the
+solve is iterative with a reported residual, not direct. Full detail and evidence
+hashes: `bc250-therock` fork, `docs/development/bc250_sparse_plan2_03_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
