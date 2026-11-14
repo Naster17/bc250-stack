@@ -126,7 +126,8 @@ GPU requires an explicit registered execution provider (`bc250-ort`).
 | Quantization — packed INT4 | hardware-blocked | native CDNA2/MFMA path absent on RDNA1; TorchAO/bitsandbytes not installed |
 | Sparse factorization — ILU(0)/IC(0) + preconditioned solve | bounded (PLAN2-03) | native hipSPARSE csrilu02/csric02 + csrsv2 opt-in; 42/42 checks at machine precision; RHS gradient; orders ≤256; rocSPARSE has no general direct sparse LU |
 | Nonsymmetric eig | host-LAPACK | production default retained (N2.2); native small-Schur slower for small orders (N2.6); larger/ill-conditioned separate |
-| Compiler (torch.compile) | bounded | dense/gated/CNN/batchnorm fixtures (D59); eager is the reference |
+| Compiler (torch.compile) | expanded (PLAN2-05) | dense/gated/CNN/batchnorm (D59) + attention/LoRA/embed+CE/dynamic (PLAN2-05); fullgraph real Inductor, parity vs CPU + eager; correctness coverage, not a throughput claim; eager is the reference |
+| Graph capture (HIP) — training step | qualified (PLAN2-05) | opt-in; bitwise-exact LoRA-step capture (fwd+bwd+eager AdamW, whole-step capturable AdamW, checkpointing, make_graphed_callables, fresh-process recapture/resume); ~1.9× launch-bound owned stack; static shapes, dropout=0; real-model wiring separate |
 
 A fallback can be correct yet slow. Warning suppression is not a backend fix.
 

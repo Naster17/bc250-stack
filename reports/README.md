@@ -690,6 +690,63 @@ not a default switch and not a LoRA-step speedup (D70: the eager attention core
 is 0.3–0.5% of the step). Full detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_attention_plan2_04_results/`.
 
+## PLAN2-05 — torch.compile expansion + graph-capture integration (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+stock ≤2000 MHz). Fifth item of the forward PLAN2 plan. **Result: PASSED** —
+qualified on OWNED synthetic fixtures with a reusable opt-in capture helper.
+**No app entry-point, Torch source, default, package or release change** (pytorch
+series stays 23 patches); not installed into any image.
+
+**Part A — compile expansion (14/14 checks).** `torch.compile(fullgraph=True)`
+coverage extended beyond dense/gated/CNN/batchnorm to causal math-SDPA attention,
+LoRA linear (frozen base + rank-8 adapter), embedding+LM-head+cross-entropy, and
+dynamic shapes, in FP32/FP16/BF16. Real Inductor kernels (3–11 per fixture, no
+eager fallback); parity vs an independent CPU reference and vs eager (FP32 vs
+CPU-FP64 ~1e-6; compiled-vs-eager ≤3e-5); frozen-base grads absent; dynamic FP32
+reuses one graph across L128/192/256. This is **correctness coverage, not a
+throughput claim** — at these small geometries compile does not speed up
+(attention ~1.0×, LoRA/embed 0.61–0.68×).
+
+**Part B — graph-capture integration (14/14 checks), bitwise-exact.** HIP graph
+capture of an owned 24-layer frozen-base + trainable-LoRA residual stack:
+graphed fwd+bwd + eager AdamW (FP32/FP16/BF16 autocast with FP32 masters),
+whole-step capturable AdamW, non-reentrant gradient checkpointing,
+`make_graphed_callables`, and a 16-update **fresh-process recapture/resume** —
+every parity case rel-L2 **0.0** (loss trajectory, adapter weights, optimizer
+exp_avg/exp_avg_sq). Refusals verified: dropout>0 (RNG not graph-safe), stale
+eager autograd graph on a static input. Whole-step timing **1.92×** (16.31→8.48
+ms; 1.9–3.3× across runs) on the launch-bound owned stack. On the real LoRA model
+the gain is bounded by the ~10% non-GEMM launch share (D70: the step is
+GEMM-compute-bound) — no general whole-model speed claim.
+
+Recorded precision properties (attributed to dtype/implementation, NOT compile
+defects; compiled-vs-eager stays tight): FP16 attention backward deviates ~3.4%
+from a matching-dtype CPU reference and ~24% from CPU-FP64 in EAGER too (FP16's
+narrow exponent in the softmax backward; BF16 ~0.4%); dynamic FP16 compile lowers
+SDPA to a fused Inductor kernel differing from eager math by ~0.7–0.9% (the gated
+dynamic fixture therefore runs FP32). The compile contract is stated as: compiled
+matches eager tightly AND adds no error beyond eager relative to the independent
+CPU reference; numeric thresholds were never relaxed (methodology addenda in the
+evidence BOUNDS.md).
+
+Reusable opt-in helper `graph_step.py` (GraphedStep side-stream warmup +
+torch.cuda.graph; assert_graph_safe; capture_graphed_callable). Boundaries:
+static shapes (new shape → recapture), dropout=0, graph pool not checkpointable
+(resume needs a fresh recapture, qualified exact); whole-step capture uses
+AdamW(capturable=True, foreach=False) with weights/state reset to init after
+warmup. Real-model wiring and compiled-optimizer/large-model throughput are
+separate future scopes.
+
+Attempt journey (harness fixes, not stack defects; all retained): frozen-base
+diff-target, FP16 CPU-anchor attribution, stale cleanup variable, opt.state keyed
+by parameter tensors, whole-step warmup reset, capturable/foreach-matched
+reference → bitwise. 16 new local tests (suite 467). Guardian = the qualified
+PLAN2-01/02/03/04 envelope plus a stock-clock gate; boot unchanged, kernel/registry
+clean, 0 foreign containers, boards idle pre/post, deployment host untouched.
+Full detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_compile_graph_plan2_05_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

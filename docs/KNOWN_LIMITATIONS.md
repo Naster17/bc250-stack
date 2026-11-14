@@ -26,9 +26,19 @@ the honest scope. The machine-readable form is
   conditioning/larger orders remain separate from the bounded dense-LU fallback.
 - **Math SDPA qualified**; the opt-in tiled/hybrid attention is now
   performance-qualified (PLAN2-04): causal forward 1.5–2.9× faster, full
-  attention 12–86× less peak memory but slower compute; dropout/compile/graph
-  boundaries remain documented refusals (a graph-capture probe replayed
-  bitwise-exact; graph integration is separate).
+  attention 12–86× less peak memory but slower compute; dropout/compile
+  boundaries remain documented refusals for the tiled path.
+- **torch.compile coverage expanded** (PLAN2-05) to attention/LoRA/embed+CE/
+  dynamic shapes (fullgraph, real Inductor, parity vs CPU + eager) — correctness
+  coverage, not a throughput claim (tiny fixtures do not speed up). **HIP graph
+  capture of a training step is qualified bitwise-exact** (PLAN2-05, opt-in):
+  fwd+bwd+eager AdamW, whole-step capturable AdamW, checkpointing,
+  make_graphed_callables, fresh-process recapture/resume; ~1.9× on a launch-bound
+  owned stack. Boundaries: static shapes, dropout=0, graph pool not checkpointable
+  (resume needs recapture); real-model wiring and compiled-optimizer/large-model
+  throughput are separate. Recorded precision properties (not compile defects):
+  FP16 attention backward and dynamic FP16 fused-attention lowering differ from
+  eager/CPU at the ~% level.
 - **W8 and native NF4/QLoRA quantization exist** (NF4 is explicit opt-in,
   PLAN2-02: a memory win, not a compute win, on RDNA1; first derivatives, frozen
   base, dims ≤4096, no model-quality claim). Packed INT4 remains hardware-blocked
