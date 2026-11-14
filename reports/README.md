@@ -626,6 +626,70 @@ and performance tuning are separate; first derivatives only (RHS gradient); the
 solve is iterative with a reported residual, not direct. Full detail and evidence
 hashes: `bc250-therock` fork, `docs/development/bc250_sparse_plan2_03_results/`.
 
+## PLAN2-04 — attention speed qualification (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, Torch 2.13.0a0+gfx1013,
+stock ≤2000 MHz). Fourth item of the forward PLAN2 plan. **Result: PASSED** —
+the EXISTING opt-in gfx1013 tiled SDPA (`torch.nn.attention._gfx1013`, three
+Triton scalar kernels: online softmax, FP32 accumulation, recomputed backward,
+GQA without atomics) is now performance-qualified on long-sequence owned
+fixtures. **63/63 qualification checks + 168/168 benchmark checks** (41 paired
+math-vs-tiled fixtures, 0 unstable). Scope user-confirmed: qualify + document
+only — **no Torch source/default change** (pytorch series stays 23 patches);
+math SDPA remains the production default.
+
+Evidence gap closed: the earlier A07 "BF16 tiled is slower" timings were all
+head_dim 256 **hybrid** fixtures (math FP32 forward + tiled backward); pure-tiled
+FP16/BF16 at head_dim ≤128 — the common LLM geometry — had never been paired
+against math at long sequence.
+
+Measured tradeoff (paired A1/B1/B2/A2, 2 warmups + 5 samples, median, HIP
+events; parity verified before every timed fixture):
+
+- **Causal attention**: tiled forward **1.5–2.9× faster** (masked-tile skipping);
+  fwd+bwd up to ~2.0× at head_dim 64, mixed 0.67–1.4× at head_dim 128 GQA.
+- **Full (non-causal) attention**: tiled **slower** (fwd+bwd 0.19–0.69×) but
+  **12–86× less peak memory** — e.g. head_dim 64, 16 heads, L=4096: 4152 MiB
+  math vs 48.2 MiB tiled; head_dim 128 GQA L=4096: 4208 vs 72.2 MiB. This is the
+  long-sequence **capacity** unlock: full attention that would OOM with math
+  becomes feasible within 16 GB.
+- The recomputed scalar backward is the weak point; the BF16 head_dim>128 hybrid
+  keeps the math forward's quadratic temporary (memory ratio only 0.66–0.80).
+
+Parity worst rel-L2 vs an independent CPU-FP64 anchor (output + dQ/dK/dV, 39
+cases incl. masks with fully-masked rows, cross-attention, GQA, head256,
+L up to 4096): FP32 7.6e-07 / FP16 4.3e-04 / BF16 3.4e-03 (pre-declared bounds
+3e-5 / 5e-3 / 3e-2, never relaxed). 13/13 refusals raise the documented
+exception (dropout, mask gradients, causal+mask, GQA-without-flag, non-finite
+scale, D>256, seq>4096, FP64, dtype mismatch, CPU, wrong rank, higher-order,
+compile). Integration: non-reentrant checkpoint parity; tiny Transformers Llama
+`bc250_tiled` + checkpointing vs CPU-double math (FP32 worst grad rel-L2
+7.2e-07); autocast FP16/BF16; empty dims. Informational probes: CUDA-graph
+capture of the tiled forward **works and replays bitwise-exact** on a small
+fixture (graph integration/qualification remains PLAN2-05 scope); math
+no_grad+GQA works in this release.
+
+Attempt journey (harness fixes, not stack defects; all retained): the release
+container lacks transformers (fixed via the owned lora-smoke env site-packages,
+soak pattern); the higher-order refusal was first tested at the wrong level
+(`once_differentiable` detaches grads on the create_graph call; the RuntimeError
+surfaces when differentiating them again); two bench runs crashed at the first
+GQA fixture and were initially misdiagnosed as a no_grad+GQA math-backend
+boundary — instrumented probes proved the real bug: the timing helpers dropped
+`is_causal`/`enable_gqa` from every timed call (so the early D64 "causal"
+numbers were non-causal on both backends). Those numbers are retained as defect
+evidence and used for no claim; all fixtures were re-measured with opts
+forwarded, and a regression test guards the fix. No bound, drift gate or
+envelope parameter was relaxed. 23 new local tests (suite 451). Guardian = the
+qualified PLAN2-01/02/03 envelope plus a stock-clock gate. No default/package/
+release/source change; not installed into any image; the deployment host was
+untouched.
+
+Positioning: opt-in for long-seq causal speed/memory or full-attention capacity;
+not a default switch and not a LoRA-step speedup (D70: the eager attention core
+is 0.3–0.5% of the step). Full detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_attention_plan2_04_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal

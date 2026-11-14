@@ -24,8 +24,11 @@ the honest scope. The machine-readable form is
   factorization + preconditioned solve now exists** (PLAN2-03, opt-in, machine
   precision); rocSPARSE has no general direct sparse LU/Cholesky, and extreme
   conditioning/larger orders remain separate from the bounded dense-LU fallback.
-- **Math SDPA qualified**; tiled/hybrid attention has dropout/compile/graph
-  boundaries.
+- **Math SDPA qualified**; the opt-in tiled/hybrid attention is now
+  performance-qualified (PLAN2-04): causal forward 1.5–2.9× faster, full
+  attention 12–86× less peak memory but slower compute; dropout/compile/graph
+  boundaries remain documented refusals (a graph-capture probe replayed
+  bitwise-exact; graph integration is separate).
 - **W8 and native NF4/QLoRA quantization exist** (NF4 is explicit opt-in,
   PLAN2-02: a memory win, not a compute win, on RDNA1; first derivatives, frozen
   base, dims ≤4096, no model-quality claim). Packed INT4 remains hardware-blocked

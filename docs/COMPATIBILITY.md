@@ -118,7 +118,7 @@ GPU requires an explicit registered execution provider (`bc250-ort`).
 | Route | Status | Notes |
 | --- | --- | --- |
 | Attention — math/eager SDPA | qualified | reference bring-up path; FP32/BF16/FP16 |
-| Attention — tiled/hybrid | bounded | dropout/compile/graph boundaries remain; not a default |
+| Attention — tiled/hybrid | performance-qualified (PLAN2-04) | opt-in; causal fwd 1.5–2.9× faster, full attention 12–86× less peak memory (slower compute); 63+168 checks; dropout/compile/graph boundaries documented; not a default |
 | Conv (MIOpen) | qualified | PLAN-02 FP16 FP32-accumulation repair; versioned cache |
 | Gated-delta | bounded | A06 owned fixtures; not a general FLA guarantee |
 | Quantization — W8 | frozen | `bc250_quant 0.1.0`, explicit opt-in, frozen layouts |
