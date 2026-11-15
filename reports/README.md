@@ -1061,6 +1061,68 @@ tests (suite 570). No native/default/package/release change (pytorch series stay
 patches). Full detail: `bc250-therock` fork,
 `docs/development/bc250_distributed_d77_results/`.
 
+## D78 — GEMM systemic-gap attribution (optional extension)
+
+**PASSED 2026-11-15** on the build board (release `10.2-gfx1013-20261111`).
+Diagnostic-first bounded GEMM microarchitectural R&D: resolves the ~4×
+in-model-vs-fixture GEMM "gap" left open by D71/D72. **Measurement only — no
+source/default/package/release change.**
+
+D71 found the LoRA step's dominant base projection runs ~35 ms/call in the profiler
+vs ~8.8 ms isolated; D72 ruled out the cheap causes (backward flag, throttling,
+locality). D78's decisive measurement: **in-model synced CUDA-event timing** of the
+dominant base Linear forwards in the real owned Qwen3.5-2B app step (per-call
+synchronize removes queueing, isolating kernel execution amid the resident
+working-set; 90 modules, 720 calls) gives **9.5 ms/call** — essentially the isolated
+8.1 ms (1.17×), NOT the 35 ms profiler figure (4.32×). Isolated working-set (4 GB
+touched footprint, 0.97×) and concurrency (second stream, 1.01×) probes corroborate.
+
+**Verdict: `attribution_artifact`.** The profiler's "self device time" counts
+queue/wait amid the ~157 k concurrent launches per update, not pure kernel
+execution. The GEMM kernel already runs near its isolated speed in-model — **there
+is no per-GEMM 4× slowdown to fix** (D71's solution tuning was exhausted for the
+right reason). The GEMM term is structural (actual FLOPs at the kernel's achieved
+throughput); the step stays GEMM-compute-bound by wall clock (D70), but the per-GEMM
+"gap" was a measurement artifact. The ~17% residual is a minor working-set effect,
+not a lever; the tractable levers remain the non-GEMM share. Pre-declared thresholds
+(≤1.5× attribution artifact / ≥2.5× real slowdown) classify 1.17× as attribution
+artifact. Refined stock-clock gate (actual governed clock ≤2000 MHz; under-load 241
+samples, max exactly 2000); boot unchanged; kernel/registry clean; 0 foreign
+containers; board idle pre/post; no host governor/clock write; no full-update
+record_shapes profile (avoids the D71 host-thrash vector). 14 new local tests
+(suite 595). Full detail: `bc250-therock` fork,
+`docs/development/bc250_gemm_rd_d78_results/`.
+
+## D79 — D68 fused solve/scan headroom (optional extension)
+
+**PASSED 2026-11-15** on the build board (release `10.2-gfx1013-20261111`).
+**Verdict `headroom_exhausted` → no source/default/package/release change** (pytorch
+series stays 23 patches).
+
+D68's opt-in fused solve/scan (`use_fused_solve_scan=True`, both-fused from
+`FUSED_SCAN_MIN_CHUNKS=2`) recorded a ~5% residual at C=4 as "remaining headroom".
+D79 measures the four-variant decomposition (default / inverse_only / scan_only /
+both, independent fusion switches, parity-gated vs default) at extended chunk
+geometries C=2,4,8,16 across FP32/FP16/BF16 (12 cases, all parity-passed).
+Pre-declared decision rule: a finer-selectivity lever is meaningful only if an
+alternative beats both by ≥1.10× consistently across ALL three dtypes at some C≥2
+(a single-dtype or sub-1.10× residual is noise — avoiding overfitting).
+
+**Result:** both-fused wins at C=2/8/16 (scan/both 0.86–1.01×); the only residual is
+C=4 scan-only ~3–5% (1.031–1.047×), below the threshold and within the ~11%
+run-to-run IQR; inverse_only is slower than both everywhere. The current both-fused
+rule is already near-optimal, including the real LoRA C=16 geometry. The ~1–3%
+"remaining headroom" is noise, not a tractable lever.
+
+**Combined with D78:** the GEMM term is structural and the native fused non-GEMM
+levers are exhausted at their current design — further step-time reduction would
+need a model/algorithm-level approach (fewer/cheaper operations), not per-GEMM or
+per-scan tuning. This closes the D71/D72 systemic-gap question honestly. Refined
+stock-clock gate (under-load 38 samples, max exactly 2000 MHz); boot unchanged;
+kernel/registry clean; 0 foreign containers; board idle pre/post; no host
+governor/clock write. 11 new local tests (suite 595). Full detail: `bc250-therock`
+fork, `docs/development/bc250_d68_headroom_d79_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
