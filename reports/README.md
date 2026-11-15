@@ -904,6 +904,48 @@ PLAN2 envelope plus a stock-clock gate; boot unchanged, kernel/registry clean,
 detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_causal_conv_d73_results/`.
 
+## D74 — distributed FP16 PEFT FSDP (two-host, optional extension)
+
+Completed 2026-11-14 on the .104 (r2) + .105 (r3) releases, two-rank classic
+FULL_SHARD FSDP (one rank per host, Ethernet rendezvous), under the qualified D30
+distributed guardian envelope. **Result: PASSED — 157 check groups / 18
+acknowledged guards / 500 CPU contract observations**, full exact restart. Mirrors
+D30 (BF16 PEFT FSDP) with FP16 working parameters and the native world-group
+ShardedGradScaler. **No native runtime / default / package / release change.**
+
+`BC250FP16PeftFSDPTrainer` subclasses the frozen D28 PEFT trainer: FP16 working
+params/allgathers, FP32 master shards/reductions/buffers/optimizer state,
+ShardedGradScaler required (unlike BF16 no-scaler). Owned D28 identity 24352 =
+21280 frozen + 3072 trainable LoRA. FP16 adapter gradients vs CPU-FP16 rank-local
+accumulation + CPU-FP64 at FP16-rounded working weights: max global relative
+**CPU_AMP 0.00101 / CPU_FP64 0.00096** (bounds 0.004/0.006, ~4× inside). Native
+complete-root clipping (D22 bounds), CPU-double AdamW (D21/D22 limits), frozen
+masters EXACT and absent from AdamW. D21 checkpoint-2 union (6 DCP files, 480247 B)
+across independent filesystems + fresh-process exact replay of windows 3/4.
+Collective refusals before AdamW (missing adapter gradient, injected frozen
+gradient, post-clip NaN, LoRA scaling drift, rank1-only reduction-precision
+tamper) plus FP16 scaler-overflow skip; the D28 FP32 PEFT retained control
+re-passes.
+
+**Key design work — frozen-gate / FP16-scaler-gate coexistence:** the qualified
+D26 FP16 gate checks gradients over ALL parameters; frozen PEFT params carry none.
+D74 installs an opt-in, backward-compatible frozen-aware gate (a no-op for the
+all-trainable D26 path): trainable params through the original gate's all_reduce;
+the frozen no-grad contract enforced IN the clip via its OWN synchronized
+all_reduce (the FP16 clip's unscale/root-clip would otherwise clear an injected
+frozen gradient before the optimizer pre-hook). The shared test harness recognizes
+the FP16 format-check refusal as a before-AdamW refusal. Frozen helper FILES are
+byte-unchanged (SHA-pinned); additive tools on both hosts; installed
+distributed-d09 launcher unchanged.
+
+Both boards idle pre/post; kernel logs/registries unchanged; 0 foreign containers;
+stock clocks; boots unchanged (.104 `0d46a6f1…`, .105 `7081e3df…`); deployment-host
+release/defaults unchanged. 7 new local source-contract tests (suite 522). Bounded
+owned two-host qualification — not a production, model-quality, convergence or
+speed guarantee; no activation-checkpointing FP16 PEFT (separate scope). Full
+detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_distributed_d74_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
