@@ -980,6 +980,87 @@ provider trains a ~0.12B hybrid end-to-end at realistic scale within the qualifi
 envelope. Full detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_real_scale_d75_results/`.
 
+## D76 — graph-capture integration into the real LoRA step (optional extension)
+
+**PASSED 2026-11-15** on the build board (release `10.2-gfx1013-20261111`,
+Transformers 5.22.1 / TRL 1.17.1 / peft 0.21.2). The qualified PLAN2-05
+`GraphedStep` recipe is wired into the REAL owned LoRA step (Qwen3.5-2B hybrid,
+2,016,378,688 params / 134,553,600 trainable LoRA rank-128 all-linear, FP16 +
+non-reentrant gradient checkpointing) with the native D69 fused gated-delta + D73
+conv routes. An opt-in runtime wrapper patches `Trainer.training_step`, captures
+the ORIGINAL step verbatim on static input buffers (side-stream warmup +
+`torch.cuda.graph`), and replays per microbatch; clip / scaler / optimizer stay
+eager and `zero_grad(set_to_none=False)` keeps the captured grad buffers alive.
+
+**Bitwise parity** graphed vs eager (6 updates × 4 micro, seq 1024, exact-length
+owned data → uniform static shapes): per-microbatch loss trajectory rel-L2 **0.0**
+(24/24), final adapter weights **372/372 tensors SHA-256-identical**, optimizer
+state **372/372 entries identical**, GradScaler scale trajectory identical.
+Capture succeeded; native routes fired with **0 fallbacks**; exact uninstall; 4/4
+qualification checks (helper parity + dropout / stale-graph / dynamic-shape
+refusals). **Speed 1.0014×** (eager steady 35.19 s vs graphed 35.14 s) — honest
+unity, because the capture-safe standard-loss fixture materializes full logits
+(vocab 248320) so the LM-head GEMM dominates (D70 found the step GEMM-compute-bound);
+graph capture helps launch-bound steps, not GEMM-bound ones. Speed is informational;
+parity is the gate.
+
+**Key capture-safety finding:** TRL's fused linear-cross-entropy (`fused_lm_head`
+→ `_fused_forward`) compacts hidden states with boolean-mask indexing
+`hidden_states[mask]` on Triton devices — a data-dependent host sync that is NOT
+graph-safe (`hipErrorStreamCaptureUnsupported`). The wrapper uses the base
+`Trainer.compute_loss` (the model's own fixed-shape cross-entropy) symmetrically for
+eager AND graphed runs; parity is eager-vs-graphed within that standard-loss
+fixture, not a reproduction of the app's fused-loss trajectory. The native
+conv / fused-delta routes ARE capture-safe. Boundaries: dropout 0 (RNG is not
+graph-safe), static shapes only, seq 1024 (4096 graphed exceeds the bounded child
+envelope), resume not qualified (the graph pool is not checkpointable).
+
+A refined stock-clock gate (user-authorized) checks the ACTUAL governed clock —
+OD-range SCLK ceiling ≤2000 MHz + the SMU governor active + idle clock ≤2000 +
+empirical under-load sampling (1701 samples, max exactly 2000 MHz, never above) —
+rather than an inert 2230 MHz VBIOS DPM level some boots expose. No host
+governor/clock/watchdog/kernel was modified. Boot unchanged; kernel log/registry
+clean; 0 foreign containers; board idle pre/post. 30 new local tests (suite 570).
+No application/source/default/package/release change (pytorch series stays 23
+patches). Full detail: `bc250-therock` fork,
+`docs/development/bc250_graph_capture_d76_results/`.
+
+## D77 — distributed FP16 PEFT + activation checkpointing (two-host, optional extension)
+
+**PASSED 2026-11-15** two-host (releases `10.2-gfx1013-20261111`, two-rank classic
+FULL_SHARD, one rank per host). Extends the D74 distributed FP16 PEFT FSDP path with
+native non-reentrant activation checkpointing. A new
+`BC250FP16CheckpointPeftFSDPTrainer` subclasses the D29 activation base and reuses
+the D74 FP16 precision contract (`checkpointing=True`) + frozen-aware FP16 gradient
+gate + native world-group `ShardedGradScaler`. HF model-level non-reentrant
+checkpointing (`use_reentrant=False, preserve_rng_state=True`); the FSDP-plugin
+activation-checkpointing flag stays refused.
+
+**163 check groups / 18 acknowledged guards / 552 CPU contract observations**, full
+exact restart. Owned identity 24352 = 21280 frozen + 3072 trainable (LoRA rank-4 /
+alpha-8 on 8 Conv1D). Both GPT-2 blocks recompute forward+backward
+(`checkpoint_block_calls` [14,14] seed / [6,6] resume); peak allocator memory
+recorded. FP16 working weights/allgathers, FP32 master shards/reductions/buffers/
+optimizer; adapter grads max global rel **CPU_AMP 0.00101 / CPU_FP64 0.00096**
+(bounds 0.004/0.006, ~4× inside); D22 root clip + D21/D22 AdamW limits; frozen
+masters EXACT and absent from AdamW. D21 checkpoint-2 union (6 DCP files, 480247 B)
+across independent filesystems + fresh-process exact ALL-state restore + windows
+3/4 EXACT replay. Refusals before AdamW (zero updates, EXACT unchanged state):
+missing adapter grad / injected frozen grad / post-clip NaN / LoRA scaling drift;
+FP16 scaler overflow (one rank inf → both skip); private-copy rank-1
+reduction-precision tamper; checkpoint-func keyword drift; reentrant / RNG-disabled
+/ non-bool checkpoint kwargs. The qualified D74 checkpointing-off FP16 PEFT control
+re-passes.
+
+**Frozen helper files AND the qualified D74 helper are byte-unchanged** (SHA-pinned);
+D77 is a new additive subclass. The refined stock-clock gate ran on BOTH hosts
+(actual governed clock ≤2000 MHz; under-load 526 samples/host, max exactly 2000 MHz);
+no host governor/clock/watchdog/kernel modified. Boots unchanged; kernel
+log/registry clean; 0 foreign containers; both boards idle pre/post. 14 new local
+tests (suite 570). No native/default/package/release change (pytorch series stays 23
+patches). Full detail: `bc250-therock` fork,
+`docs/development/bc250_distributed_d77_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
