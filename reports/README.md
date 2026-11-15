@@ -946,6 +946,40 @@ speed guarantee; no activation-checkpointing FP16 PEFT (separate scope). Full
 detail and evidence hashes: `bc250-therock` fork,
 `docs/development/bc250_distributed_d74_results/`.
 
+## D75 — real-scale owned-model admission (optional extension)
+
+Completed 2026-11-14 on the .104 release (r2 kernel, app-env transformers 5.22.1,
+stock ≤2000 MHz), under the qualified PLAN2 guardian envelope. **Result: PASSED —
+12/12 checks.** Scales an owned random-init Qwen3.5-hybrid config (the app's
+architecture family) to **118,701,712 params (~0.12B, ~5600× the tiny fixtures)** and
+runs the FULL qualified D62 admission battery with the native D68-fused gated-delta
+(D69) + conv (D73) routes installed. **No native runtime / default / package /
+release change**; owned random-init only (no weights fetched, no `from_pretrained`,
+no excluded application); the D62 helper is unchanged.
+
+Battery: forward vs an independent CPU-FP64 reference (bitwise loss, tolerance
+0.02), backward ALL finite/nonzero gradients, optimizer step, bitwise save/resume +
+exact 3-step continuation (two-model resume check). All five route probes fired:
+attention (backend flags + tiled SDPA), gated-delta (native chunk op), conv (native
+causal conv), quant-w8, quant-nf4. Native fused-delta / conv each logged 126 calls;
+the 18 `dtype` fallbacks each are the CPU-FP64 reference forward (FP64 is not a
+native compute dtype — the reference correctly uses the reference path).
+
+**Memory-envelope finding:** the D62 two-model resume + CPU state serialization runs
+in the 10 GiB container cgroup; a ~0.4B attempt was OOM-killed (and the reference
+gated-delta fallback is memory-hungry at scale). ~0.12B with the native routes
+installed is the realistic ceiling for the full two-model FP32 battery here — a
+scale/envelope adjustment, not a numeric-bound relaxation. Larger forward-only
+probes are an optional separate scope.
+
+Board idle pre/post; kernel log/registry unchanged; 0 foreign containers; boot
+unchanged (`0d46a6f1…`); stock clocks; host config untouched. 4 new local tests
+(suite 526). Bounded owned real-scale admission — not a model-quality / convergence
+/ production or speed guarantee; it proves the native gated-delta/conv/attention
+provider trains a ~0.12B hybrid end-to-end at realistic scale within the qualified
+envelope. Full detail and evidence hashes: `bc250-therock` fork,
+`docs/development/bc250_real_scale_d75_results/`.
+
 ## Evidence model
 
 Each milestone carries its own receipts with per-file SHA-256. The full internal
