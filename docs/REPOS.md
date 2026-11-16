@@ -40,7 +40,7 @@ Naming convention: `bc250-<component>`. Branch convention: `bc250/gfx1013`.
 | abseil / protobuf / pybind11 | recorded | MIGraphX third-party deps |
 
 The authoritative per-file pins and licenses are in [`sbom/`](../sbom/) and
-[`recipes/`](../recipes/). The full reconstruction proof is PLAN-07 (D47–D56).
+[`recipes/`](../recipes/). A full offline reconstruction proof is included.
 
 ## Kernel provenance (important)
 
@@ -58,9 +58,8 @@ bc250-stack/
 ├── README.md            # overview + quickstart + repo map
 ├── docs/                # architecture, building, compatibility, performance, kernel
 ├── patches/             # every patch series, by component (also applied in the forks)
-├── recipes/             # offline build recipes (D52 kit + D55 full rebuild)
+├── recipes/             # offline build recipes
 ├── sbom/                # SBOM, license manifest, source recipes, known limitations
-├── reports/             # curated qualification reports (release + PLAN-07..10)
 └── tools/               # bc250 build/qualification tooling
 ```
 

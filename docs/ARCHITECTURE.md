@@ -54,10 +54,10 @@ and collective communication correct on the board.
 rocBLAS, hipBLASLt, MIOpen, hipSPARSELt, and friends. The 38-patch series is the
 largest and includes the headline repairs:
 
-- **MIOpen gfx1013 FP16 direct-forward with FP32 accumulation** (the PLAN-02
-  repair), plus a versioned binary cache keyed after the repair.
+- **MIOpen gfx1013 FP16 direct-forward with FP32 accumulation**, plus a
+  versioned binary cache keyed after the repair.
 - The explicit opt-in **FP32/FP16 CK DL forward plugin** facade and its
-  descriptor/runtime contracts (B07.12/B07.13; never the global default).
+  descriptor/runtime contracts (never the global default).
 - hipBLASLt native gfx1013 backend selection.
 - DPP-only subwave reducer guards for strict builds.
 
@@ -86,7 +86,7 @@ gfx1013 training surface:
 - **opt-in training ops** (explicit, never silent fallback);
 - native **sparse autograd**;
 - native **gated-delta** preparation, precision handling, and head-256 attention;
-  opt-in fused solve/scan (D68, selective from two chunks, default unchanged);
+  opt-in fused solve/scan (selective from two chunks, default unchanged);
 - native **Kineto SDK** profiling and ROCm profiler CPU-first initialization;
 - ROCm sparse triangular pivot NaN fix;
 - distributed/quantization hardening: BF16 NCCL PreMulSum storage, FP8 reduction
@@ -95,7 +95,7 @@ gfx1013 training surface:
 
 Attention runs through math/eager SDPA by default, with an opt-in tiled/hybrid
 path; quantization has a frozen **W8** route and an opt-in native **NF4/QLoRA**
-route (PLAN2-02: dequantize-to-FP16 + the qualified GEMM, a memory win on RDNA1;
+route (dequantize-to-FP16 + the qualified GEMM, a memory win on RDNA1;
 packed INT4 stays hardware-blocked, no MFMA). The design rule throughout:
 **explicit opt-in, refuse rather than silently fall back.**
 
@@ -124,13 +124,12 @@ packed INT4 stays hardware-blocked, no MFMA). The design rule throughout:
   branch ↔ patch series" (`fetch_sources.py` applies `patches/<tag>/<project>/`,
   `save_patches.sh` regenerates them) — which is exactly how this port is
   published.
-- **Reconstruction proof (PLAN-07, D47–D56):** the whole stack was rebuilt offline
-  from preserved, reviewed inputs alone (pins, patches, toolchain, external
-  payloads), proving the release is reproducible without the original in-place
-  build environment.
-- **Release (PLAN-08, D57–D61):** a self-contained, immutable, versioned prefix
-  (`10.2-gfx1013-20261111-138a66f52`), qualified by independent-path activation on
-  both boards with live rollback, plus SBOM, license bundle, and source recipes.
+- **Reconstruction proof:** the whole stack was rebuilt offline from preserved,
+  reviewed inputs alone (pins, patches, toolchain, external payloads), proving
+  the release is reproducible without the original in-place build environment.
+- **Release:** a self-contained, immutable, versioned prefix, qualified by
+  independent-path activation with live rollback, plus SBOM, license bundle, and
+  source recipes.
 
 ## Design principles
 

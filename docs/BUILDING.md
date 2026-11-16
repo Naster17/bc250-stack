@@ -5,8 +5,7 @@ Two paths: **use the qualified release** (recommended), or **build from source**
 
 ## Path A — use the release
 
-The release `10.2-gfx1013-20261111-138a66f52` is a **self-contained, immutable,
-build-free extractable prefix**. It ships the qualified deployed cohort (ROCm +
+The release is a **self-contained, immutable, build-free extractable prefix**. It ships the qualified deployed cohort (ROCm +
 materialized Torch trees + consumer wheels) with `daily` and `rccl-single`
 profiles. Extract it, point the ordinary `bc250-*` callers at it, and run. No
 compiler toolchain is needed to *use* it.
@@ -15,8 +14,8 @@ The release layout, SBOM, and source recipes are in [`../sbom/`](../sbom/).
 
 ## Path B — build from source (reconstruction)
 
-PLAN-07 (D47–D56) proved the stack rebuilds **offline** from preserved inputs
-alone. The recipes reproduce this:
+The stack rebuilds **offline** from preserved inputs alone (a clean
+reconstruction is proven). The recipes reproduce this:
 
 - [`recipes/build-kit/build-fresh-daily.sh`](../recipes/build-kit/build-fresh-daily.sh)
   and `build-fresh-rccl-single.sh` — independent pip-only Torch candidates.
@@ -48,13 +47,11 @@ constraint; a larger envelope must be a separately measured admission experiment
 The build consumes the fork branches (`bc250-torch`, `bc250-triton`,
 `bc250-rocm-libraries`, `bc250-rocm-systems`, …) plus the recipe-fetched pins
 (torchvision, llvm-project, etc.) recorded in [`../sbom/source-recipes.json`](../sbom/source-recipes.json).
-The external ROCm/Clang/RCCL payload and toolchain are preserved per D53/D51.
+The external ROCm/Clang/RCCL payload and toolchain are preserved as pinned inputs.
 
 ## Verifying a build
 
 The qualification fixtures live in [`../tools/`](../tools/). The release was
-qualified by independent-path activation on both boards (326 + 656 checks) with
-live rollback; the owned admission and benchmark fixtures
-(`admit_model_d62.py`, `benchmark_training_d64.py`) reproduce the compatibility
-and performance evidence. See [`COMPATIBILITY.md`](COMPATIBILITY.md) and
-[`PERFORMANCE.md`](PERFORMANCE.md).
+qualified by independent-path activation with live rollback; the owned admission
+and benchmark fixtures reproduce the compatibility and performance evidence. See
+[`COMPATIBILITY.md`](COMPATIBILITY.md) and [`PERFORMANCE.md`](PERFORMANCE.md).

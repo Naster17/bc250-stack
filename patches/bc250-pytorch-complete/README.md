@@ -1,7 +1,7 @@
 # BC-250 PyTorch — complete reconstruction series
 
 Complete single-base patch series for the published `bc250-torch` fork
-(`Naster17/bc250-torch`, branch `bc250/gfx1013`). Regenerated 2026-11-13 from the
+(`Naster17/bc250-torch`, branch `bc250/gfx1013`). Regenerated from the
 authoritative patched source history with `git format-patch base..head`; verified
 by the umbrella fork CI (`tools/verify_patch_series.py`, component `pytorch`).
 
@@ -12,11 +12,9 @@ by the umbrella fork CI (`tools/verify_patch_series.py`, component `pytorch`).
 - **Reconstructed tree:** `ce52766844bf301974b9b4887072660c62ecaa12`
 
 Patches `0001`–`0022` reconstruct head `8d8b18df558cb478727ba2179f2e01dfce20ea40`
-(tree `33a862732a52c8825a3d1f9c0b609d06fba0df65`), exactly matching the D46
-verified complete-export record (`torch-complete.json` in the private D46
-evidence store). Patch `0023` adds the D68 opt-in fused gated-delta solve/scan
-(`use_fused_solve_scan`, default path unchanged); the deployed release still
-ships the pre-D68 module.
+(tree `33a862732a52c8825a3d1f9c0b609d06fba0df65`), exactly matching the verified
+complete-export record. Patch `0023` adds the opt-in fused gated-delta solve/scan
+(`use_fused_solve_scan`, default path unchanged).
 
 ## Reconstruct
 

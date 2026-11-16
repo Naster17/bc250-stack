@@ -1,35 +1,36 @@
 {
-  "release": "10.2-gfx1013-20261111-138a66f52",
-  "generated": "2026-11-12",
+  "release": "10.2-gfx1013",
   "hardware": [
     "No MFMA/WMMA matrix instructions; cannot be added in software",
     "SDMA disabled; experimental VM heap disabled (safe defaults)",
-    "12 CPUs / ~15 GiB RAM per board; single all-resident 1B FSDP state floor exceeds physical RAM (D43)",
-    "Advanced hardware profiling (PC sampling/RDC) unqualified; attained-clock/temperature/power telemetry semantics unvalidated (N4)"
+    "~16 GB VRAM per board, shared CPU/GPU memory; a single all-resident 1B FSDP state floor exceeds physical RAM",
+    "Advanced hardware profiling (PC sampling/RDC) unqualified; attained-clock/temperature/power telemetry semantics unvalidated; gpu_busy_percent returns EOPNOTSUPP"
   ],
   "software_subsets": [
     "Scalar backends have documented API/type/operator subsets",
-    "Production nonsymmetric eig uses host LAPACK; scalable sparse factorization differs from the bounded dense-LU fallback (bc250_sparse)",
-    "Math SDPA qualified; tiled/hybrid attention has dropout/compile/graph boundaries (sdpa_tiled block)",
-    "W8 quantization exists; NF4/packed INT4/full QLoRA are separate unqualified feasibility work",
-    "FP16 PEFT and broader training recipes remain separate qualification work; qualified policies are FP32/BF16 per D26-D31"
+    "Model admission is per-architecture bounded evidence (causal LMs, owned UNet2D, RNN/LSTM/GRU); not a universal support claim; diffusers absent (UNet is owned pure-torch)",
+    "Production nonsymmetric eig uses host LAPACK; native ILU(0)/IC(0) sparse factorization + preconditioned solve exists (opt-in, machine precision); rocSPARSE has no general direct sparse LU/Cholesky",
+    "Math SDPA qualified; opt-in tiled/hybrid attention is performance-qualified with dropout/compile/graph boundaries",
+    "torch.compile coverage extends to attention/LoRA/embed+CE/dynamic (correctness, not throughput); HIP graph capture of a training step is bitwise-exact (opt-in, static shapes, dropout=0); TRL fused linear-CE boolean indexing is not graph-safe",
+    "W8 and native NF4/QLoRA quantization exist (NF4 opt-in: memory win, not compute win, on RDNA1); packed INT4 hardware-blocked (no MFMA); TorchAO/bitsandbytes not installed",
+    "Qualified training policies include FP32/BF16 and FP16 PEFT (incl. distributed FSDP FP16 PEFT with activation checkpointing and exact restart); broader recipes/larger models separate"
   ],
   "performance": [
-    "Two-board FSDP ~68x slower than single-board when the model fits (D43/L01 measured 1.231x warm-update throughput only in its particular application); no general two-board speedup claim",
-    "D43 median 53.365 s/update at 1.024B/seq128/global2; wall times are admission costs, not performance guarantees"
+    "No general two-board speedup claim; two-board FSDP can be far slower than single-board when the model fits; two boards buy capacity and redundancy, not a linear speedup",
+    "Per-operation speed frontier exhausted: the GEMM term is structural and native fused non-GEMM levers are near-optimal; further step-time reduction needs a model/algorithm-level approach",
+    "Measured wall times are admission costs, not performance guarantees"
   ],
   "release_boundaries": [
-    "Release is immutable (mutable=false); torch remains an editable install from the materialized tree",
-    "Rebuilt binaries are reconstruction proof, not the shipped artifact: daily libtorch_cpu and rccl libraries differ from the deployed cohort (D56 delta investigation; working-tree drift hypothesis); the release ships the qualified deployed cohort",
-    "Triton provenance is pin+patches+qualified wheel; no Triton rebuild demonstration (user-accepted scope decision)",
-    "No long-run stability soak; PLAN-06 bounded stability scope only; unknown Python/KFD/clocksource causes remain separate",
-    "finetune-n7 user application excluded from all qualification; owned fixtures only"
+    "Release is immutable; torch remains an editable install from the materialized tree",
+    "Rebuilt binaries are reconstruction proof, not the shipped artifact; the release ships the qualified deployed cohort",
+    "Triton provenance is pin+patches+qualified wheel; no Triton rebuild demonstration (accepted scope decision)",
+    "Stability qualified by a bounded multi-segment soak (exact resume at stock clocks); indefinite long-run behavior and unknown Python/KFD/clocksource causes remain separate",
+    "Qualification uses owned fixtures only; user applications are excluded"
   ],
   "deployment": [
-    "host104 selection: D49 cohort pending D61 promotion; host105: release active (D60)",
-    "Boot fallbacks preserved: .104 r2 boot path; .105 grub r2 one-shot + M105.1 boot-health package",
-    "Rollback assets preserved: .104 D49 cohort + historical releases; .105 r4 cohort + D01 + retained base + M105.1",
-    "Publication/distribution requires explicit user instruction; not performed"
+    "Boot fallbacks and rollback assets preserved (historical cohorts + retained base + boot-health package)",
+    "Run the board at stock clocks (<=2000 MHz); a persistent SMU overclock destabilizes the GPU under sustained load",
+    "Publication/distribution requires explicit instruction"
   ],
-  "superseded_runtime_limitation": "The runtime.json limitations string \"Mutable developer prefix\" describes the dev cohort; the release itself is immutable.Editable Torch remains."
+  "superseded_runtime_limitation": "The runtime.json limitations string \"Mutable developer prefix\" describes the dev cohort; the release itself is immutable. Editable Torch remains."
 }
