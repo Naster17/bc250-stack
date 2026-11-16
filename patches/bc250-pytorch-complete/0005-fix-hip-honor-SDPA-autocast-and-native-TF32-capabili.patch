@@ -1,4 +1,4 @@
-From 4ee65717d69e9f51021272e3f37d0f342f68fc08 Mon Sep 17 00:00:00 2001
+From c63b82d5e6e02fe018f0b4db2f0dff0d5db86b8f Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Thu, 15 Oct 2026 17:03:09 +0200
 Subject: [PATCH 05/23] fix(hip): honor SDPA autocast and native TF32
@@ -57,5 +57,5 @@ index 944cc5c..f6c721b 100644
          raise ValueError("Only FP32/FP16/BF16 Q/K/V are supported")
      if query.device.type != "cuda" or not torch.version.hip:
 -- 
-2.56.0
+2.56.1
 

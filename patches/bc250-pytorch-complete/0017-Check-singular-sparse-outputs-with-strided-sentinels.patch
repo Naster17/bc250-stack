@@ -1,4 +1,4 @@
-From 2b449c4abe36b896a6efb2a68e7a42d9922d5696 Mon Sep 17 00:00:00 2001
+From e2202e79dfa54e2c0c3531e8249b998fcc79a7ef Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 21:26:45 +0200
 Subject: [PATCH 17/23] Check singular sparse outputs with strided sentinels on
@@ -78,5 +78,5 @@ index 7d4ab2c..ac0b349 100644
  
              check(f"{dtype}_{layout}_rhs{nrhs}_{kind}", edge)
 -- 
-2.56.0
+2.56.1
 

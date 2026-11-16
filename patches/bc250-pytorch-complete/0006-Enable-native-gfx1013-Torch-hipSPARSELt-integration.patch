@@ -1,4 +1,4 @@
-From 8cdfcc8e0feb3689a1ec1d292539af083b13ea94 Mon Sep 17 00:00:00 2001
+From 5764db1c557979098eceda26e18e50c5769ffa6b Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 16 Oct 2026 18:46:36 +0200
 Subject: [PATCH 06/23] Enable native gfx1013 Torch hipSPARSELt integration
@@ -24,23 +24,26 @@ No sparse speedup or broad stability claim.
 
 Authored with an AI assistant.
 ---
- .../ATen/native/sparse/cuda/cuSPARSELtOps.cpp |  81 ++++++++-
+ .../ATen/native/sparse/cuda/cuSPARSELtOps.cpp |  83 ++++++++--
  test/test_bc250_hipsparselt.py                | 154 ++++++++++++++++++
  torch/CMakeLists.txt                          |  10 +-
  torch/csrc/Module.cpp                         |   2 +-
  torch/csrc/cuda/Module.cpp                    |   4 +-
  torch/csrc/cuda/shared/cusparselt.cpp         |   6 +-
- 6 files changed, 243 insertions(+), 14 deletions(-)
+ 6 files changed, 244 insertions(+), 15 deletions(-)
  create mode 100644 test/test_bc250_hipsparselt.py
 
 diff --git a/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp b/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
-index f0f4172..2a41739 100644
+index 49018e0..6e3fb33 100644
 --- a/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
 +++ b/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
-@@ -27,9 +27,9 @@ static bool g_hipSparseLtSupported = false;
- 
+@@ -28,11 +28,11 @@ static bool g_hipSparseLtSupported = false;
  static const std::vector<std::string>& hipSparseLtSupportedArchs() {
- #if ROCM_VERSION >= 71400
+ #if ROCM_VERSION >= 100300
+   static const std::vector<std::string> archs = {
+-      "gfx950", "gfx942", "gfx1250", "gfx1250-strict"};
++      "gfx950", "gfx942", "gfx1250", "gfx1250-strict", "gfx1013"};
+ #elif ROCM_VERSION >= 71400
 -  static const std::vector<std::string> archs = {"gfx950", "gfx942", "gfx1250"};
 +  static const std::vector<std::string> archs = {"gfx950", "gfx942", "gfx1250", "gfx1013"};
  #elif ROCM_VERSION >= 71200
@@ -49,7 +52,7 @@ index f0f4172..2a41739 100644
  #else
    static const std::vector<std::string> archs = {};
  #endif
-@@ -73,7 +73,23 @@ static bool isHipSparseLtSupported() {
+@@ -76,7 +76,23 @@ static bool isHipSparseLtSupported() {
  }
  #endif
  
@@ -73,7 +76,7 @@ index f0f4172..2a41739 100644
    if (!handle_initialized) {
      TORCH_CUDASPARSE_CHECK(cusparseLtInit(&handle));
      handle_initialized = true;
-@@ -96,11 +112,12 @@ at::Tensor _cslt_compress(const Tensor& sparse_input) {
+@@ -99,11 +115,12 @@ at::Tensor _cslt_compress(const Tensor& sparse_input) {
      case at::ScalarType::BFloat16:
        type = CUDA_R_16BF;
        break;
@@ -88,7 +91,7 @@ index f0f4172..2a41739 100644
  #if defined(CUSPARSELT_VERSION) && CUSPARSELT_VERSION >= 602 || defined(USE_ROCM)
      case at::ScalarType::Float8_e4m3fn:
        type = CUDA_R_8F_E4M3;
-@@ -168,6 +185,35 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -171,6 +188,35 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
      int split_k,
      int split_k_mode,
      bool search_alg_id) {
@@ -124,7 +127,7 @@ index f0f4172..2a41739 100644
    if (!handle_initialized) {
      TORCH_CUDASPARSE_CHECK(cusparseLtInit(&handle));
      handle_initialized = true;
-@@ -212,14 +258,15 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -215,14 +261,15 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
        C_type = CUDA_R_16BF;
        compute_type = CUSPARSE_COMPUTE_32F;
        break;
@@ -142,7 +145,7 @@ index f0f4172..2a41739 100644
  // cuSPARSELt >= 0.6.2 or hipSparseLt: add Float8 support
  #if defined(CUSPARSELT_VERSION) && CUSPARSELT_VERSION >= 602 || defined(USE_ROCM)
      case at::ScalarType::Float8_e4m3fn:
-@@ -265,7 +312,7 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -268,7 +315,7 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
    ScalarType out_dtype = dense_B.scalar_type();
    // special check for mixed dtype support for 8 bit dtypes
    // cslt 0.5.2+: int8 int8 -> {fp16, bf16, int32} support
@@ -151,7 +154,7 @@ index f0f4172..2a41739 100644
      out_dtype = out_dtype_opt.value();
      if (input_type == CUDA_R_8I) {
        switch (out_dtype) {
-@@ -346,6 +393,15 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -349,6 +396,15 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
        CUSPARSE_ORDER_ROW,
        CUSPARSELT_SPARSITY_50_PERCENT));
  
@@ -167,7 +170,7 @@ index f0f4172..2a41739 100644
    // initialize dense input descriptor
    cusparseLtMatDescriptor_t dense_input_descriptor;
    TORCH_CUDASPARSE_CHECK(cusparseLtDenseDescriptorInit(
-@@ -404,6 +460,13 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -407,6 +463,13 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
    if (bias_opt.has_value()) {
      auto& bias = bias_opt.value();
      void* dBias = bias.data_ptr();
@@ -181,7 +184,7 @@ index f0f4172..2a41739 100644
      TORCH_CUDASPARSE_CHECK(cusparseLtMatmulDescSetAttribute(
          &handle,
          &matmul,
-@@ -423,8 +486,8 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
+@@ -426,8 +489,8 @@ std::tuple<at::Tensor, int64_t, int64_t, int64_t, int64_t> _cslt_sparse_mm_impl(
        &alg_id,
        sizeof(alg_id)));
  
@@ -433,5 +436,5 @@ index e263418..1d49994 100644
  
  std::tuple<int64_t, int64_t, int64_t, int64_t> mmSearch(
 -- 
-2.56.0
+2.56.1
 

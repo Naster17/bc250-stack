@@ -1,4 +1,4 @@
-From 43cb299a616e335c5700f578b92692ac6f0fc975 Mon Sep 17 00:00:00 2001
+From 1d8b28bc6db6be67bc77646bc08c89f1a29e589f Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Thu, 15 Oct 2026 16:55:07 +0200
 Subject: [PATCH 04/23] perf(hip): skip masked causal tiles in gfx1013
@@ -55,5 +55,5 @@ index a5c8d53..944cc5c 100644
              if b*h*m:
                  _forward[(m, b*h)](q, k, v, mask, o, lse, *params, num_warps=4)
 -- 
-2.56.0
+2.56.1
 

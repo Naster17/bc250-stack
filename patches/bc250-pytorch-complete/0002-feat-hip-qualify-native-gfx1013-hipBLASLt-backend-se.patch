@@ -1,15 +1,15 @@
-From 4f13bf86476252e3d57b17d1c72f8512814400e9 Mon Sep 17 00:00:00 2001
+From 7e88252a3a152fad7264f6bf2f919284a8d788e1 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Wed, 14 Oct 2026 10:06:26 +0200
 Subject: [PATCH 02/23] feat(hip): qualify native gfx1013 hipBLASLt backend
  selection
 
 ---
- aten/src/ATen/cuda/detail/CUDAHooks.cpp | 85 ++++++++++++++++++++++---
- 1 file changed, 77 insertions(+), 8 deletions(-)
+ aten/src/ATen/cuda/detail/CUDAHooks.cpp | 89 ++++++++++++++++++++++---
+ 1 file changed, 80 insertions(+), 9 deletions(-)
 
 diff --git a/aten/src/ATen/cuda/detail/CUDAHooks.cpp b/aten/src/ATen/cuda/detail/CUDAHooks.cpp
-index 47e83d0..eb8b128 100644
+index 030ea60..06d6de8 100644
 --- a/aten/src/ATen/cuda/detail/CUDAHooks.cpp
 +++ b/aten/src/ATen/cuda/detail/CUDAHooks.cpp
 @@ -28,8 +28,9 @@
@@ -23,7 +23,7 @@ index 47e83d0..eb8b128 100644
  #endif
  
  #ifndef USE_ROCM
-@@ -567,18 +568,86 @@ const std::vector<std::string>& CUDAHooks::getHipblasltPreferredArchs() const {
+@@ -576,21 +577,91 @@ const std::vector<std::string>& CUDAHooks::getHipblasltPreferredArchs() const {
  }
  
  const std::vector<std::string>& CUDAHooks::getHipblasltSupportedArchs() const {
@@ -49,10 +49,16 @@ index 47e83d0..eb8b128 100644
 +        "gfx1151",
  #endif
  #if ROCM_VERSION >= 71400
--    "gfx1250"
+-    "gfx1250",
++        "gfx1250",
+ #endif
+ #if ROCM_VERSION >= 100300
+-    "gfx1170", "gfx1171", "gfx1250-strict",
 -#endif
 -  };
-+        "gfx1250"
++        "gfx1170",
++        "gfx1171",
++        "gfx1250-strict",
 +#endif
 +    };
 +    // gfx1013 support is supplied by an optional scalar backend. A ROCm version
@@ -118,5 +124,5 @@ index 47e83d0..eb8b128 100644
  }
  #endif
 -- 
-2.56.0
+2.56.1
 

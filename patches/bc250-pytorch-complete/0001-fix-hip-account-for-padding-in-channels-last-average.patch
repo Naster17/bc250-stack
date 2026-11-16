@@ -1,4 +1,4 @@
-From b36877506d38eb74abcd01d667e9b05d6b60430a Mon Sep 17 00:00:00 2001
+From 6c4f6659691b7b2ee07f7895b85f9be85be666a8 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Tue, 13 Oct 2026 11:36:27 +0200
 Subject: [PATCH 01/23] fix(hip): account for padding in channels-last
@@ -24,5 +24,5 @@ index 96202c7..71dd612 100644
  
      const int phstart = (h < kernel_h) ? 0 : (h - kernel_h) / stride_h + 1;
 -- 
-2.56.0
+2.56.1
 

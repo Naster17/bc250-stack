@@ -75,12 +75,12 @@
     },
     "pytorch": {
       "upstream": "https://github.com/ROCm/pytorch.git",
-      "base": "c779020750d7dc99a39ea8c104ef8df1fc9d0755",
+      "base": "02aa33a60be69e8323ba80a35ca0eb90813a33bc",
       "patches": "patches/bc250-pytorch-complete",
       "fork": "https://github.com/Naster17/bc250-torch.git",
       "fork_branch": "bc250/gfx1013",
-      "published_head": "262accc8ac53c34cd649d4df49c0cf22999eb10d",
-      "expected_tree": "ce52766844bf301974b9b4887072660c62ecaa12",
+      "published_head": "b0c641e62b94487fe015fbbf5fa4a52b3a754323",
+      "expected_tree": "73874e3e42dc3dc494abaa6fd070a0b61558376c",
       "patch_count": 23,
       "apply": "index"
     }

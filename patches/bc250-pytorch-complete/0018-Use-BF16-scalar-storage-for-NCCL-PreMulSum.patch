@@ -1,4 +1,4 @@
-From ade6fcc1ae7574b2f5ad285c8a2c592af1e3e99c Mon Sep 17 00:00:00 2001
+From 8e0ec40e33a2ca32a6a589bc73acb75ad02fda73 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 23 Oct 2026 11:31:50 +0200
 Subject: [PATCH 18/23] Use BF16 scalar storage for NCCL PreMulSum
@@ -39,7 +39,7 @@ index 3daf424..38df418 100644
                      3.0,
                      torch.tensor([5.0], device=local_device_id, dtype=dtype),
 diff --git a/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp b/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
-index 7eee36c..e6be6d7 100644
+index 889c2a8..8c600b7 100644
 --- a/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
 +++ b/torch/csrc/distributed/c10d/ProcessGroupNCCL.cpp
 @@ -115,7 +115,7 @@ ncclRedOpRAII getNcclReduceOp(
@@ -52,5 +52,5 @@ index 7eee36c..e6be6d7 100644
            return unpackPreMulSum<double, ncclDouble>(reduceOp, comm);
          default:
 -- 
-2.56.0
+2.56.1
 

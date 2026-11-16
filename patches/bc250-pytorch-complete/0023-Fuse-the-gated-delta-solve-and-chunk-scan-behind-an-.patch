@@ -1,4 +1,4 @@
-From 262accc8ac53c34cd649d4df49c0cf22999eb10d Mon Sep 17 00:00:00 2001
+From b0c641e62b94487fe015fbbf5fa4a52b3a754323 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 13 Nov 2026 17:26:30 +0100
 Subject: [PATCH 23/23] Fuse the gated-delta solve and chunk scan behind an
@@ -543,5 +543,5 @@ index 26756bb..71dc2b1 100644
      out = out.flatten(2, 3)[:, :, :t].transpose(1, 2)
      return out.to(query.dtype).contiguous(), state if output_final_state else None
 -- 
-2.56.0
+2.56.1
 

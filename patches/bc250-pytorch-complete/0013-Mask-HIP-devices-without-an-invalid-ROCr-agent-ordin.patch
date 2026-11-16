@@ -1,4 +1,4 @@
-From 1e36f53ed45a0cad99ff75070a4a3d761932a9be Mon Sep 17 00:00:00 2001
+From e7b015ab4e9c0ca404d8aeb1a508b909a833822e Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 17:06:07 +0200
 Subject: [PATCH 13/23] Mask HIP devices without an invalid ROCr agent ordinal
@@ -20,5 +20,5 @@ index ee4830b..cb8b3ab 100644
                      [sys.executable, __file__, "--worker", order, "--output", output],
                      env=env,
 -- 
-2.56.0
+2.56.1
 

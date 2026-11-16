@@ -1,4 +1,4 @@
-From da453699db3b79bc198dc3b3cc1bf57633743b1c Mon Sep 17 00:00:00 2001
+From 07ad58a6490c1546a3974a224b41d4256d3e52ac Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 17:07:21 +0200
 Subject: [PATCH 14/23] Use a valid out-of-range HIP ordinal in the masked
@@ -22,5 +22,5 @@ index cb8b3ab..673096e 100644
                      [sys.executable, __file__, "--worker", order, "--output", output],
                      env=env,
 -- 
-2.56.0
+2.56.1
 

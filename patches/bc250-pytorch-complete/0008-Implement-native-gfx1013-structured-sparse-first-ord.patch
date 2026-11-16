@@ -1,4 +1,4 @@
-From 6ed3d12b184a27d21c0fa41d43269ff6bd17f1e0 Mon Sep 17 00:00:00 2001
+From 111b2bea4de75b6b46560395da92b57ebec04de9 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Fri, 16 Oct 2026 19:41:49 +0200
 Subject: [PATCH 08/23] Implement native gfx1013 structured sparse first-order
@@ -95,10 +95,10 @@ index 9ca22e7..f32a10b 100644
    dispatch:
      CUDA: _cslt_sparse_mm_search
 diff --git a/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp b/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
-index 2a41739..7972b86 100644
+index 6e3fb33..bf6be3f 100644
 --- a/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
 +++ b/aten/src/ATen/native/sparse/cuda/cuSPARSELtOps.cpp
-@@ -82,6 +82,80 @@ static bool usesGfx1013ScalarSparseLt() {
+@@ -85,6 +85,80 @@ static bool usesGfx1013ScalarSparseLt() {
  #endif
  }
  
@@ -179,7 +179,7 @@ index 2a41739..7972b86 100644
  at::Tensor _cslt_compress(const Tensor& sparse_input) {
    const bool native_gfx1013 = usesGfx1013ScalarSparseLt();
    if (native_gfx1013) {
-@@ -674,6 +748,18 @@ int64_t _cslt_sparse_mm_search(
+@@ -677,6 +751,18 @@ int64_t _cslt_sparse_mm_search(
  
  namespace at::native {
  
@@ -872,5 +872,5 @@ index fd6ba17..bebf108 100644
              raise NotImplementedError(
                  f"`{self.__class__.__name__}` matmul: operation is not supported"
 -- 
-2.56.0
+2.56.1
 

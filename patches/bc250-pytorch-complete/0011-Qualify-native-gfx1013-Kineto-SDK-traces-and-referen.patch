@@ -1,4 +1,4 @@
-From 4af4a1508a6ec0b7b2b29f5e0115f8477c4d1bb5 Mon Sep 17 00:00:00 2001
+From e9441043bc67c9bb67af6ef754124560cac1765a Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 10:53:11 +0200
 Subject: [PATCH 11/23] Qualify native gfx1013 Kineto SDK traces and reference
@@ -259,5 +259,5 @@ index 0000000..d5cfd5d
 +if __name__ == "__main__":
 +    run_tests()
 -- 
-2.56.0
+2.56.1
 

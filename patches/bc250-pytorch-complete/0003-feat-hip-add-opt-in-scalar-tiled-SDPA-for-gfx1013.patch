@@ -1,4 +1,4 @@
-From bda0831ba49ef9d0ba2968a800642e5abaec5dd5 Mon Sep 17 00:00:00 2001
+From b5b64207948a8543c6b800e7fb76487755ec0d90 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Thu, 15 Oct 2026 16:27:36 +0200
 Subject: [PATCH 03/23] feat(hip): add opt-in scalar tiled SDPA for gfx1013
@@ -10,10 +10,10 @@ Subject: [PATCH 03/23] feat(hip): add opt-in scalar tiled SDPA for gfx1013
  create mode 100644 torch/nn/attention/_gfx1013.py
 
 diff --git a/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp b/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp
-index 8654bd5..e0d10f2 100644
+index ff080f2..bfaa87b 100644
 --- a/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp
 +++ b/aten/src/ATen/native/transformers/cuda/sdp_utils.cpp
-@@ -971,7 +971,9 @@ bool can_use_flash_attention(sdp_params const& params, bool debug) {
+@@ -978,7 +978,9 @@ bool can_use_flash_attention(sdp_params const& params, bool debug) {
  
  bool can_use_mem_efficient_attention(sdp_params const& params, bool debug) {
  #ifndef USE_MEM_EFF_ATTENTION
@@ -290,5 +290,5 @@ index 0000000..a5c8d53
 +    ALL_MASK_ATTENTION_FUNCTIONS.register(
 +        "bc250_tiled", ALL_MASK_ATTENTION_FUNCTIONS["sdpa"])
 -- 
-2.56.0
+2.56.1
 

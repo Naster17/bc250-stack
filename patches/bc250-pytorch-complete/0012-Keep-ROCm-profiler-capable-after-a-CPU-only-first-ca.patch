@@ -1,4 +1,4 @@
-From b823a1b2f327d5ba07af0796876f93e5308a1012 Mon Sep 17 00:00:00 2001
+From e48879bf476003daa4f048dac8fa7158205e9720 Mon Sep 17 00:00:00 2001
 From: Naster17 <naster17.dev@gmail.com>
 Date: Sun, 18 Oct 2026 17:01:25 +0200
 Subject: [PATCH 12/23] Keep ROCm profiler capable after a CPU-only first
@@ -211,5 +211,5 @@ index 86ab9b7..7efe64c 100644
    }
  
 -- 
-2.56.0
+2.56.1
 
