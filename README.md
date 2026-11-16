@@ -40,19 +40,19 @@ Full map with upstream pins and patch counts: [`docs/REPOS.md`](docs/REPOS.md).
 ## Architecture at a glance
 
 ```
-        ┌──────────────────────────────────────────────────────────┐
-        │  Training apps / consumers (torch, torchaudio, torchcodec) │
-        ├──────────────────────────────────────────────────────────┤
-        │  PyTorch (bc250-torch)  +  Triton (bc250-triton)           │
-        │  native gfx1013 ops: attention, gated-delta, sparse, W8    │
-        ├──────────────────────────────────────────────────────────┤
-        │  ROCm libraries (bc250-rocm-libraries) + systems           │
-        │  hipBLASLt / MIOpen / RCCL / HIP / ROCr / profiler         │
-        ├──────────────────────────────────────────────────────────┤
-        │  Kernel (bc250-linux): amdgpu/amdkfd compute quirks        │
-        ├──────────────────────────────────────────────────────────┤
-        │  BC-250 APU — gfx1013 (RDNA1, no MFMA/WMMA, SDMA off)      │
-        └──────────────────────────────────────────────────────────┘
+        ┌─────────────────────────────────────────────────────────────┐
+        │  Training apps / consumers (torch, torchaudio, torchcodec)  │
+        ├─────────────────────────────────────────────────────────────┤
+        │  PyTorch (bc250-torch)  +  Triton (bc250-triton)            │
+        │  native gfx1013 ops: attention, gated-delta, sparse, W8     │
+        ├─────────────────────────────────────────────────────────────┤
+        │  ROCm libraries (bc250-rocm-libraries) + systems            │
+        │  hipBLASLt / MIOpen / RCCL / HIP / ROCr / profiler          │
+        ├─────────────────────────────────────────────────────────────┤
+        │  Kernel (bc250-linux): amdgpu/amdkfd compute quirks         │
+        ├─────────────────────────────────────────────────────────────┤
+        │  BC-250 APU - gfx1013 (RDNA1, no MFMA/WMMA, SDMA off)       │
+        └─────────────────────────────────────────────────────────────┘
 ```
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layer-by-layer
