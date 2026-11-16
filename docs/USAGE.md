@@ -135,15 +135,17 @@ qualified scope and evidence.
 
 ## 6. Redistributable Docker image
 
-A self-contained runtime image (ROCm `gfx1013` libraries + patched Torch + stack
-helpers + distributed runtime) is being prepared so users can run the stack
-**without building from source**. It is assembled from the qualified runtime
-image and exported as a tar artifact; publication to Docker Hub (or a similar
-registry) is a separate, explicit step.
+A self-contained runtime image (ROCm `gfx1013` libraries + patched Torch +
+training consumers) is **built and GPU-verified** so users can run the stack
+**without building from source**. It is assembled FROM the qualified release
+base, baking the release ROCm prefix + Torch + consumers at the launcher's
+absolute paths (runtime parity preserved). Publication to Docker Hub (or a
+similar registry) is a separate, explicit step (not done yet).
 
-> Image tag, registry and exact size are finalized in the release notes once the
-> image is built and verified. Until then, build/run from the published source +
-> patch series (see [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md)).
+> Local tag `bc250-stack:10.2-gfx1013-20261111` (17.3 GB uncompressed); GPU probe
+> passed (`torch 2.13.0a0+gfx1013`, `cuda True`, `gfx1013:xnack-`, device matmul).
+> The public registry tag is finalized at publication; see
+> [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md).
 
 Run pattern (once published):
 
