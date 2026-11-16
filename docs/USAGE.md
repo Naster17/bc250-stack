@@ -136,24 +136,24 @@ qualified scope and evidence.
 ## 6. Redistributable Docker image
 
 A self-contained runtime image (ROCm `gfx1013` libraries + patched Torch +
-training consumers) is **built and GPU-verified** so users can run the stack
+training consumers) is **published on Docker Hub** so users can run the stack
 **without building from source**. It is assembled FROM the qualified release
 base, baking the release ROCm prefix + Torch + consumers at the launcher's
-absolute paths (runtime parity preserved). Publication to Docker Hub (or a
-similar registry) is a separate, explicit step (not done yet).
+absolute paths (runtime parity preserved). GPU-verified on `gfx1013`.
 
-> Local tag `bc250-stack:10.2-gfx1013-20261111` (17.3 GB uncompressed); GPU probe
-> passed (`torch 2.13.0a0+gfx1013`, `cuda True`, `gfx1013:xnack-`, device matmul).
-> The public registry tag is finalized at publication; see
-> [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md).
+> **Public image:** `docker.io/naster17/bc250-stack:10.2-gfx1013-20261111`
+> (4.38 GB compressed / ~17.3 GB uncompressed). GPU probe passed
+> (`torch 2.13.0a0+gfx1013`, `cuda True`, `gfx1013:xnack-`, device matmul). The
+> ROCm prefix is split into per-subdirectory layers to stay under Docker Hub's
+> 10 GB per-layer limit. See [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md).
 
-Run pattern (once published):
+Run pattern:
 
 ```bash
-docker pull <registry>/bc250-stack:<tag>
+docker pull naster17/bc250-stack:10.2-gfx1013-20261111
 docker run --rm --device /dev/kfd --device /dev/dri \
   --group-add video -v "$PWD":/work -w /work \
-  <registry>/bc250-stack:<tag> python3 app.py
+  naster17/bc250-stack:10.2-gfx1013-20261111 python3 app.py
 ```
 
 The image targets `gfx1013` only; it does not enable other AMD architectures.

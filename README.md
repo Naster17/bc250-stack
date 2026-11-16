@@ -17,8 +17,10 @@ qualified, versioned release.
 > boards with proven rollback; two-host distributed training was re-verified
 > passed on 2026-11-16. The Torch source was refreshed onto the latest
 > `ROCm/pytorch release/2.13` tip (D80, parity-preserving) and published as a
-> source RC. A redistributable Docker image is being prepared. See
-> [`docs/USAGE.md`](docs/USAGE.md), [`docs/`](docs/) and [`reports/`](reports/).
+> source RC. A redistributable Docker image is **published on Docker Hub**:
+> `naster17/bc250-stack:10.2-gfx1013-20261111` (run the stack without building
+> from source). See [`docs/USAGE.md`](docs/USAGE.md), [`docs/`](docs/) and
+> [`reports/`](reports/).
 
 ## What's here
 
