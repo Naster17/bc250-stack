@@ -18,9 +18,9 @@ qualified, versioned release.
 > passed on 2026-11-16. The Torch source was refreshed onto the latest
 > `ROCm/pytorch release/2.13` tip (D80, parity-preserving) and published as a
 > source RC. A redistributable Docker image is **published on Docker Hub**:
-> `naster17/bc250-stack:10.2-gfx1013-20261111` (run the stack without building
-> from source). See [`docs/USAGE.md`](docs/USAGE.md), [`docs/`](docs/) and
-> [`reports/`](reports/).
+> [`naster17/bc250-stack:10.2-gfx1013`](https://hub.docker.com/r/naster17/bc250-stack)
+> — run the stack without building from source. See
+> [`docs/USAGE.md`](docs/USAGE.md), [`docs/`](docs/) and [`reports/`](reports/).
 
 ## What's here
 
@@ -62,6 +62,23 @@ Full map with upstream pins and patch counts: [`docs/REPOS.md`](docs/REPOS.md).
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layer-by-layer
 explanation, the gfx1013 constraints, and how the pieces fit together.
+
+## Run from Docker (no build)
+
+The full stack is a ready-to-run image on Docker Hub — pull it and pass through
+the GPU:
+
+```bash
+docker pull naster17/bc250-stack:10.2-gfx1013
+docker run --rm -it --device /dev/kfd --device /dev/dri --group-add video \
+  -v "$PWD":/work -w /work naster17/bc250-stack:10.2-gfx1013 python3 app.py
+```
+
+[`naster17/bc250-stack`](https://hub.docker.com/r/naster17/bc250-stack) — tags
+`10.2-gfx1013` / `10.2` / `latest`, following the **ROCm release line** (a future
+ROCm 10.3 gets its own `gfx1013` tag after re-porting + qualification). Requires a
+`gfx1013` (RDNA1) AMD GPU with the `amdgpu` driver. Full requirements + examples:
+[`docs/USAGE.md §6`](docs/USAGE.md).
 
 ## Quickstart
 

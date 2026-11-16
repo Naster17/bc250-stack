@@ -141,20 +141,27 @@ training consumers) is **published on Docker Hub** so users can run the stack
 base, baking the release ROCm prefix + Torch + consumers at the launcher's
 absolute paths (runtime parity preserved). GPU-verified on `gfx1013`.
 
-> **Public image:** `docker.io/naster17/bc250-stack:10.2-gfx1013-20261111`
-> (4.38 GB compressed / ~17.3 GB uncompressed). GPU probe passed
-> (`torch 2.13.0a0+gfx1013`, `cuda True`, `gfx1013:xnack-`, device matmul). The
-> ROCm prefix is split into per-subdirectory layers to stay under Docker Hub's
-> 10 GB per-layer limit. See [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md).
+> **Public image:** [`naster17/bc250-stack`](https://hub.docker.com/r/naster17/bc250-stack)
+> — tag **`10.2-gfx1013`** (aliases `10.2`, `latest`); 4.38 GB compressed /
+> ~17.3 GB uncompressed. GPU probe passed (`torch 2.13.0a0+gfx1013`, `cuda True`,
+> `gfx1013:xnack-`, device matmul). The ROCm prefix is split into per-subdirectory
+> layers to stay under Docker Hub's 10 GB per-layer limit. See
+> [BUILDING.md](BUILDING.md) and [REPOS.md](REPOS.md).
 
 Run pattern:
 
 ```bash
-docker pull naster17/bc250-stack:10.2-gfx1013-20261111
+docker pull naster17/bc250-stack:10.2-gfx1013
 docker run --rm --device /dev/kfd --device /dev/dri \
   --group-add video -v "$PWD":/work -w /work \
-  naster17/bc250-stack:10.2-gfx1013-20261111 python3 app.py
+  naster17/bc250-stack:10.2-gfx1013 python3 app.py
 ```
+
+**Versioning:** Docker tags follow the **ROCm release line** — `10.2-gfx1013`
+today; a future ROCm 10.3 (etc.) gets its own `gfx1013` tag after re-porting and
+qualification, and `latest` tracks the newest qualified line. (The on-board
+*release* keeps its full qualified identity `10.2-gfx1013-20261111-138a66f52`,
+separate from the public Docker tag.)
 
 The image targets `gfx1013` only; it does not enable other AMD architectures.
 
