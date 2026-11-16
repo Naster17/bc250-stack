@@ -11,9 +11,14 @@ queues) need explicit fixes. This stack carries those fixes as a clean, rebasabl
 set of branches and patch series, with a full reconstruction proof and a
 qualified, versioned release.
 
-> **Status:** all ten work packages complete. Release
+> **Status:** all ten work packages, the seven PLAN2 capability items, and the
+> D66–D80 extension batches are complete. Release
 > `10.2-gfx1013-20261111-138a66f52` is built, qualified, and deployed on both
-> boards with proven rollback. See [`docs/`](docs/) and [`reports/`](reports/).
+> boards with proven rollback; two-host distributed training was re-verified
+> passed on 2026-11-16. The Torch source was refreshed onto the latest
+> `ROCm/pytorch release/2.13` tip (D80, parity-preserving) and published as a
+> source RC. A redistributable Docker image is being prepared. See
+> [`docs/USAGE.md`](docs/USAGE.md), [`docs/`](docs/) and [`reports/`](reports/).
 
 ## What's here
 
@@ -58,6 +63,9 @@ explanation, the gfx1013 constraints, and how the pieces fit together.
 
 ## Quickstart
 
+- **Start here:** [`docs/USAGE.md`](docs/USAGE.md) — what is qualified and how /
+  what / with-what to run (single-host, two-host distributed, native opt-in
+  capabilities, and the redistributable Docker image).
 - **Use the release:** see [`docs/BUILDING.md`](docs/BUILDING.md) and the release
   notes. The release is a self-contained, build-free extractable prefix.
 - **Build from source:** the offline recipes in [`recipes/`](recipes/) reproduce
@@ -69,6 +77,7 @@ explanation, the gfx1013 constraints, and how the pieces fit together.
 
 | Doc | Contents |
 | --- | --- |
+| [USAGE.md](docs/USAGE.md) | final usage guide: what is qualified, how/what/with-what to run |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | layers, gfx1013 constraints, design |
 | [REPOS.md](docs/REPOS.md) | repo map, upstream pins, patch counts |
 | [BUILDING.md](docs/BUILDING.md) | build-from-source + release usage |
